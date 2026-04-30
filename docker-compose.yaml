@@ -1,0 +1,76 @@
+version: '3.8'
+
+networks:
+  iot_net:
+    driver: bridge
+
+volumes:
+  emqx_data:
+  timescaledb_data:
+  grafana_data:
+
+services:
+  # =========================================
+  # 1. EMQX - Broker MQTT
+  # =========================================
+  emqx:
+    image: emqx:5.5
+    container_name: iot_emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"       # Porta standard MQTT (i tuoi bridge Python si connetteranno qui)
+      - "18083:18083"     # Dashboard di amministrazione web
+    volumes:
+      - emqx_data:/opt/emqx/data
+    networks:
+      - iot_net
+
+  # =========================================
+  # 2. TimescaleDB - Database Time-Series
+  # =========================================
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: iot_timescaledb
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=iot_user
+      - POSTGRES_PASSWORD=iot_password
+      - POSTGRES_DB=iot_data
+    ports:
+      - "5432:5432"       # Esposta per permettere ai tuoi script Python di scriverci
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    networks:
+      - iot_net
+
+  # =========================================
+  # 3. Grafana - Visualizzazione
+  # =========================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: iot_grafana
+    restart: unless-stopped
+    depends_on:
+      - timescaledb
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"       # UI di Grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - iot_net
+
+  # =========================================
+  # 4. Server HTTP (Endpoint REST API)
+  # =========================================
+  mesapi-http-server:
+    build:
+      context: ./http_api  # Assicurati di creare questa cartella con il codice Python e un Dockerfile
+    container_name: iot_http_server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"       # Esposta per le chiamate REST (es. http://localhost:8000/orders)
+    networks:
+      - iot_net
