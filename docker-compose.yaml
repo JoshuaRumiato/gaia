@@ -5,9 +5,9 @@ networks:
     driver: bridge
 
 volumes:
-  emqx_data:
+  emqx-data:
   timescaledb-data:
-  grafana_data:
+  grafana-data:
 
 services:
   # =========================================
@@ -29,7 +29,22 @@ services:
       - gaia-network
 
   # =========================================
-  # 2. EMQX - MQTT Broker
+  # 2. Fill-DB - Data population script
+  # =========================================
+  fill-db-service:
+    build:
+      context: ./fill-db
+    container_name: gaia-fill-db
+    restart: "no"
+    depends_on:
+      - timescaledb
+    env_file:
+      - ./fill-db/.env
+    networks:
+      - gaia-network
+
+  # =========================================
+  # 3. EMQX - MQTT Broker
   # =========================================
   emqx:
     image: emqx:5.5
@@ -39,12 +54,12 @@ services:
       - "1883:1883"       # MQTT standard port (for Python scripts)
       - "18083:18083"     # Dashboard
     volumes:
-      - emqx_data:/opt/emqx/data
+      - emqx-data:/opt/emqx/data
     networks:
       - gaia-network
 
   # =========================================
-  # 3. Grafana - Visualization tool
+  # 4. Grafana - Visualization tool
   # =========================================
   grafana:
     image: grafana/grafana:latest
@@ -58,18 +73,20 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - grafana_data:/var/lib/grafana
+      - grafana-data:/var/lib/grafana
     networks:
       - gaia-network
 
   # =========================================
-  # 4. Server HTTP (Endpoint REST API)
+  # 5. Server HTTP (Endpoint REST API)
   # =========================================
   mesapi-http-server:
     build:
-      context: ./mesapi-server  # Assicurati di creare questa cartella con il codice Python e un Dockerfile
+      context: ./mesapi-server
     container_name: gaia-mesapi-http-server
     restart: unless-stopped
+    depends_on:
+      - timescaledb
     ports:
       - "8000:8000"       # REST calls (ex. http://localhost:8000/active-order?production-line=4371)
     networks:
