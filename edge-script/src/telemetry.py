@@ -8,7 +8,7 @@ custom metrics, and structured logs to an OTLP-compatible endpoint.
 
 import logging
 import asyncio
-from typing import Literal
+from typing import Literal, Optional
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
@@ -53,9 +53,9 @@ class Telemetry:
         hostname: str,
         queue: asyncio.Queue
     ) -> None:
-        """Initializes the Telemetry object with the given configuration.
+        """Initialize the Telemetry object with the given configuration.
 
-        Constructs the OpenTelemetry Resource metadata and formats 
+        Construct the OpenTelemetry Resource metadata and format 
         the OTLP endpoint URL.
 
         Args:
@@ -69,7 +69,15 @@ class Telemetry:
 
         Returns:
             None
+
+        Raises:
+            ValueError: If the deployment_environment is not 'development' 
+                or 'production'.
         """
+
+        valid_deployment_envs = ["development", "production"]
+        if deployment_environment not in valid_deployment_envs:
+            raise ValueError(f"Invalid deployment environment '{deployment_environment}'. Must be one of {valid_deployment_envs}")
 
         self.endpoint_host = endpoint_host
         self.endpoint_port = endpoint_port
@@ -79,29 +87,35 @@ class Telemetry:
         self.queue = queue
         self.resource = Resource.create({
             "service.name": self.service_name,
-            "deployment.environment": self.deployment_environment,  # Cambiare in 'production' su Raspberry
+            "deployment.environment": self.deployment_environment,
             "host.name": self.hostname
         })
         self.otlp_endpoint = f"http://{self.endpoint_host}:{self.endpoint_port}"
 
-        self.logger_provider: LoggerProvider = None
-        self.meter_provider: MeterProvider = None
+        self.logger_provider: Optional[LoggerProvider] = None
+        self.meter_provider: Optional[MeterProvider] = None
         self.is_initialized = False
 
-    def setup(self):
+
+    def setup(self) -> None:
         """Configure and start the OpenTelemetry providers and exporters.
 
-        This method performs the following initialization steps:
-        1. Sets up the LoggerProvider with an OTLP gRPC exporter.
-        2. Configures the standard Python logging module to route 'edge-logger' 
-           logs through OpenTelemetry.
-        3. Sets up the MeterProvider with a periodic OTLP exporter.
-        4. Starts the SystemMetricsInstrumentor to capture hardware metrics.
-        5. Registers a custom observable gauge for monitoring the size 
-           of the provided asynchronous queue.
+        Perform the following initialization steps:
+        - Set up the LoggerProvider with an OTLP gRPC exporter.
+        - Configure the standard Python logging module to route 'edge-logger' 
+          logs through OpenTelemetry.
+        - Set up the MeterProvider with a periodic OTLP exporter.
+        - Start the SystemMetricsInstrumentor to capture hardware metrics.
+        - Register a custom observable gauge for monitoring the size 
+          of the provided asynchronous queue.
 
         Returns:
             None
+
+        Raises:
+            Exception: If any part of the initialization fails, the error is 
+                caught, and a shutdown is attempted to ensure partial 
+                resources are cleaned up.
         """
 
         if self.is_initialized:
@@ -109,17 +123,16 @@ class Telemetry:
             return
         
         try:
-            # Log configuration
+            # 1. LoggerProvider and log format setup
             logger_provider = LoggerProvider(self.resource)
             set_logger_provider(logger_provider)
             log_exporter = OTLPLogExporter(endpoint=f"{self.otlp_endpoint}/logs")
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
 
-            # Lof format setup
-            log_format = f"GAIA | {self.hostname} | %(message)s"
+            log_format = f"MAIA | {self.hostname} | %(message)s"
             formatter = logging.Formatter(log_format)
 
-            # Integrate OpenTelemetry with the standard Python logging module.
+            # 2. Integrate OpenTelemetry with the standard Python logging module.
             # Attach the handler to the 'edge-logger' so that any standard log 
             # message is automatically converted and exported via OTLP.
             handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
@@ -129,16 +142,16 @@ class Telemetry:
             edge_logger.setLevel(logging.INFO)
             edge_logger.propagate = False
             
-            # Metrics configuration
+            # 3. Metrics setup
             metric_exporter = OTLPMetricExporter(endpoint=f"{self.otlp_endpoint}/metrics")
             reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=15000)
             meter_provider = MeterProvider(resource=self.resource, metric_readers=[reader])
             metrics.set_meter_provider(meter_provider)
 
-            # Automatically collect and export standard host metrics
+            # 4. Start SystemMetricsInstrumentor to automatically collect and export standard host metrics
             SystemMetricsInstrumentor().instrument()
             
-            # Create a custom metric to monitor the internal data queue size
+            # 5. Create a custom metric to monitor the internal data queue size
             meter = metrics.get_meter("edge-queue-metrics")
             meter.create_observable_gauge(
                 name="queue_size",
@@ -157,11 +170,17 @@ class Telemetry:
     def shutdown(self) -> None:
         """Safely shut down the OpenTelemetry providers.
 
-        Ensures that all pending logs and metrics are flushed to the 
+        Ensure that all pending logs and metrics are flushed to the 
         configured endpoints before the application instance is destroyed.
+        Reset the provider attributes and the initialization flag.
 
         Returns:
             None
+
+        Raises:
+            Exception: Internal errors during the flushing or shutdown process 
+                are caught and suppressed to prevent interruption of the 
+                application's exit sequence.
         """
 
         try:

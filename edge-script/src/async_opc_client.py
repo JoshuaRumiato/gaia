@@ -25,22 +25,38 @@ class SubscriptionHandler:
     """
 
     def __init__(self, node_mapping: dict[str, str], queue: asyncio.Queue) -> None:
-        """
-        Initializes the SubscriptionHandler with a node map and a message queue.
-
-        Returns:
-            None
-
+        """Initializes the SubscriptionHandler with a node map and a message queue.
+        
         Args:
             node_mapping (dict[str, str]): Map used for fast variable name resolution.
             queue (asyncio.Queue): Asyncronous queue used to store and share data.
+        
+        Returns:
+            None
         """
 
         self.node_mapping = node_mapping
         self.queue = queue
 
 
-    def status_change_notification(self, val):
+    def status_change_notification(self, val) -> None:
+        """Handle status change notifications from the OPC UA server.
+
+        Monitor the subscription status and raise an error if the connection 
+        state becomes invalid or unhealthy.
+
+        Args:
+            val (asyncua.ua.uatypes.StatusChangeNotification): Object containing 
+                 details about the subscription status change.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If the notification status indicates a connection 
+                failure or an invalid state.
+        """
+
         if val.Status.value != 0:
             raise RuntimeError("Connection status changed badly")
 
@@ -62,8 +78,11 @@ class SubscriptionHandler:
             val (Any): New value of the node.
             data (asyncua.ua.uatypes.DataValue): Full data value object 
                 containing metadata (timestamps, status, etc.).
-        """
         
+        Returns:
+            None
+        """
+
         timestamp = datetime.datetime.now().timestamp()
         node_id_str = node.nodeid.to_string()
         node_info = self.node_mapping.get(node_id_str, {"name": node_id_str, "type": "Unknown"})
@@ -76,11 +95,10 @@ class SubscriptionHandler:
         }
         
         try:
-            # Put the data in the queue without blocking
-            self.queue.put_nowait(change_data)
+            self.queue.put_nowait(change_data)  # Put data in the queue without blocking
         except asyncio.QueueFull:
             pass
-        
+
 
 class AsyncOPCClient:
     """Wrapper class for managing asyncrnonous OPC UA client connections.
@@ -170,7 +188,7 @@ class AsyncOPCClient:
                 the connection to the server.
         """
 
-        if self.client and self.is_connected:
+        if self.client and self.is_connected:  # Ensure idempotente behaviour
             try:
                 await self.client.disconnect()
             except Exception as e:
@@ -180,58 +198,18 @@ class AsyncOPCClient:
                 self.is_connected = False
 
 
-    def get_root_node(self) -> Optional[asyncua.common.node.Node]:
-        """Returns the root node of the server
-        
-        Returns:
-            asyncua.common.node.Node: Node representing the root of the OPC UA server
-        """
-        if self.client and self.is_connected:
-            return self.client.nodes.root
-
-
-    def get_objects_node(self) -> Optional[asyncua.common.node.Node]:
-        """Retrieve the `Objects` folder node from the OPC UA server.
-
-        The `Objects` node is the standard entry point for browsing the 
-        server's address space and accessing custom variables and objects.
-
-        If no connection was established before calling this method, return `None`.
-
-        Returns:
-            Optional[asyncua.common.node.Node]: `asyncua` Node object representing the standard 
-                `Objects` folder.
-        """
-        if self.client and self.is_connected:
-            return self.client.nodes.objects
-        return None
-
-
-    async def get_child_by_name(self, parent: asyncua.common.node.Node, name: str) -> Optional[asyncua.common.node.Node]:
-        """Find a child node by its BrowseName.
-
-        Iterate through all children of a given parent node and compare 
-        their BrowseName with the provided string.
-
-        If no connection was established before calling this method, return `None`.
+    async def _get_data_type(self, node: asyncua.common.node.Node) -> str:
+        """Resolve the OPC UA data type of a node into a human-readable string.
 
         Args:
-            parent (asyncua.common.node.Node): Parent node to search within.
-            name (str): BrowseName of the child node to find.
+            node (asyncua.common.node.Node): The node whose data type 
+                needs to be identified.
 
         Returns:
-            Optional[Node]: Matching child node if found.
+            str: The name of the data type (e.g., 'Double', 'Int32') 
+                or 'Unknown' if no match is found.
         """
-        if self.client and self.is_connected:
-            children = await parent.get_children()
-            for c in children:
-                browse_name = await c.read_browse_name()
-                if browse_name.Name == name:
-                    return c
-        return None
-
-
-    async def _get_data_type(self, node: asyncua.common.node.Node):
+        
         node_type = await node.read_data_type()
 
         # VariantType is an Enum. It is possible to access its items and values 
@@ -248,13 +226,13 @@ class AsyncOPCClient:
             queue: asyncio.Queue,
             period: int = 500
     ) -> asyncua.common.subscription.Subscription:
-        """Set up a subscription to get data changes for all variables whithin a folder.
+        """Set up a subscription to get data changes for a list of node IDs.
 
-        Identifies variable nodes, create a local mapping of NodeIds 
-        to BrowseNames for efficient access, and initialize an OPC UA subscription.
+        Create a local mapping of NodeIds to BrowseNames for efficient access, 
+        and initialize an OPC UA subscription for the specified nodes.
 
         Args:
-            folder_node (asyncua.common.node.Node): Parent node containing variables to subscribe to.
+            node_ids (list[str]): List of Node IDs (as strings) to subscribe to.
             queue (asyncio.Queue): Asyncronous queue used to store and share data.
             period (int): Publishing interval in milliseconds. Defaults to 500.
 
@@ -262,7 +240,7 @@ class AsyncOPCClient:
             asyncua.common.subscription.Subscription: The created subscription object.
 
         Raises:
-            RuntimeError: If called while the client is disconnected
+            RuntimeError: If called while the client is disconnected.
         """
         
         if not self.is_connected:
@@ -273,15 +251,17 @@ class AsyncOPCClient:
             variables = []
 
             for node_id_str in node_ids:
-                node_class = await node_id_str.read_node_class()
-                if node_class == asyncua.ua.NodeClass.Variable:
-                    variables.append(node_id_str)
-                    browse_name = await node_id_str.read_browse_name()
-                    node_type = await self._get_data_type(node_id_str)
-                    node_mapping[node_id_str.nodeid.to_string()] = {
-                        "name": browse_name.Name,
-                        "type": node_type
-                    }
+                node = self.client.get_node(node_id_str)
+                variables.append(node)
+
+                # Read metadata for mapping
+                browse_name = await node.read_browse_name()
+                node_type = await self._get_data_type(node)
+
+                node_mapping[node_id_str] = {
+                    "name" : browse_name.Name,
+                    "type" : node_type
+                }
 
             handler = SubscriptionHandler(node_mapping, queue)
             subscription = await self.client.create_subscription(period, handler)

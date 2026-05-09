@@ -23,6 +23,12 @@ services:
       - "5432:5432"
     volumes:
       - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d gaia_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - gaia-network
 
@@ -30,12 +36,15 @@ services:
   # 2. Fill-DB - Data population script
   # =========================================
   fill-db-service:
+    profiles:
+      - init
     build:
       context: ./fill-db
     container_name: gaia-fill-db
     restart: "no"
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
     env_file:
       - ./fill-db/.env
     networks:
@@ -53,6 +62,12 @@ services:
       - "18083:18083"     # Dashboard
     volumes:
       - emqx-data:/opt/emqx/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18083/api/v5/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - gaia-network
 
@@ -64,7 +79,8 @@ services:
     container_name: gaia-grafana
     restart: unless-stopped
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -72,6 +88,12 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - gaia-network
 
@@ -84,8 +106,17 @@ services:
     container_name: gaia-mesapi-http-server
     restart: unless-stopped
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
     ports:
-      - "8000:8000"       # REST calls (ex. http://localhost:8000/active-order?production-line=4371)
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    env_file:
+      - mesapi-server/.env
     networks:
       - gaia-network

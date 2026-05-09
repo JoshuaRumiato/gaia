@@ -1,7 +1,7 @@
 """
 Asyncronous MQTT communication module.
 
-This module provides a wrapper for the `aiomqtt` library to simplify 
+Provide a wrapper for the `aiomqtt` library to simplify 
 the process of connecting and publishing messages to an MQTT broker.
 
 Handle SSL/TLS configuration and JSON serialization internally. 
@@ -151,8 +151,8 @@ class AsyncMQTTPublisher:
             raise TypeError("Message payload must be a dictionary.")
 
         try:
-            msg["client_id"] = self.client_id  # Add client_id to the message, to better track the messages
             payload = json.dumps(msg)  # Convert dictionary to a JSON string
+            print(payload)
             await self.client.publish(
                 self.topic, 
                 payload=payload,

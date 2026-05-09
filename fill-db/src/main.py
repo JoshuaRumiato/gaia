@@ -232,6 +232,17 @@ def phase_5_calculate_dates(db: DatabaseConnection, orders_map: Dict[int, Dict])
     print(f"✓ Updated {len(update_data)} orders with start_date and end_date")
 
 
+def is_database_already_populated(db: DatabaseConnection) -> bool:
+    """Check if database is already populated by verifying if articles exist."""
+    try:
+        db.execute("SELECT COUNT(*) FROM articles;")
+        count = db.cursor.fetchone()[0]
+        return count > 0
+    except Exception:
+        # Table doesn't exist or connection failed, so DB is not populated
+        return False
+
+
 def main() -> None:
     print("=" * 60)
     print("MES DATABASE POPULATION SCRIPT")
@@ -240,6 +251,13 @@ def main() -> None:
     db = DatabaseConnection()
     try:
         db.connect()
+        
+        # Check if database is already populated
+        if is_database_already_populated(db):
+            print("\n✓ Database already populated, skipping fill-db")
+            print("=" * 60)
+            return
+        
         create_schema(db)
         
         # Phase 1: Articles

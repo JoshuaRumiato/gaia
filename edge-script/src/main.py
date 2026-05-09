@@ -1,3 +1,18 @@
+"""IoT Bridge for OPC UA to MQTT data ingestion.
+
+This module acts as the entry point for the application. It orchestrates 
+the connection to an OPC UA server, monitors specific variables, and 
+publishes the gathered data to an MQTT broker. It also handles system 
+signals for a graceful shutdown and manages telemetry and MES API integration.
+
+Example:
+    To run the application, ensure environment variables are set and execute:
+        $ python main.py
+
+Attributes:
+    logger (logging.Logger): Logger instance for the module.
+"""
+
 import os
 import sys
 import signal
@@ -19,6 +34,22 @@ logger = logging.getLogger("edge-logger")
 
 
 def load_config() -> dict[str, dict[str, str | int | bool]]:
+    """Load application configuration from environment variables.
+
+    Retrieve settings for global metadata, telemetry, OPC UA server, 
+    and MQTT publisher by reading from the system's environment variables. 
+    Perform type conversion for ports (integer) and boolean flags.
+
+    Returns:
+        dict[str, dict[str, str | int | bool]]: A nested dictionary containing 
+            the categorized configuration parameters.
+
+    Raises:
+        ValueError: If an environment variable expected to be an integer 
+            (e.g., ports) contains an invalid string.
+        TypeError: If a required environment variable is missing (None) 
+            during integer conversion.
+    """
     return {
         "global" : {
             "manufacturer" : os.getenv("MANUFACTURER"),
@@ -54,26 +85,49 @@ async def publisher_worker(
         mesapi_client: AsyncMesAPIClient, 
         prod_line: str,
         queue: asyncio.Queue,
-        extra_data: dict[str, str] = {},
+        extra_data: dict[str, str] | None = None,
         max_concurrent: int = 50
 ) -> None:
-    """Consume messages from a queue, add some extra info and publish them via MQTT.
+    """Consume messages from a queue, add extra information and publish them via MQTT.
 
-    This worker maintains an active connection to the MQTT broker, handles
-    automatic retries on connection failure, and processes messages 
-    asynchronously from the provided queue.
+    Maintain an active connection to the MQTT broker, handle automatic 
+    retries on connection failure, and process messages asynchronously 
+    from the provided queue.
 
     Args:
-        mqtt_publisher (AsyncMQTTPublisher): The client used to publish messages.
-        queue (asyncio.Queue): The asynchronous queue containing messages to be sent.
+        mqtt_publisher (AsyncMQTTPublisher): Client used to publish messages.
+        mesapi_client (AsyncMesAPIClient): Client used to fetch production 
+            order information from the MES API.
+        prod_line (str): Identifier of the production line, used to query 
+            work order data.
+        queue (asyncio.Queue): Asynchronous queue containing messages to 
+            be processed and sent.
+        extra_data (dict[str, str] | None): Data to be merged into every 
+            outgoing message payload. Defaults to None.
+        max_concurrent (int): Maximum number of concurrent publishing tasks 
+            allowed. Defaults to 50.
 
     Returns:
         None
-    """
 
+    Raises:
+        asyncio.CancelledError: If the worker task is cancelled by the 
+            event loop.
+    """
+    extra_data = extra_data or {}  # If extra data is None, 
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def process_message(data: dict[str, str | int]) -> None:
+        """Merge extra information to a message and publish it via MQTT.
+
+        Handle connection resets on failure. 
+
+        Args:
+            data (dict[str, Any]): Raw message payload retrieved from the queue.
+
+        Returns:
+            None
+        """
         async with semaphore:
             try:
                 for key in extra_data:
@@ -81,10 +135,10 @@ async def publisher_worker(
                 
                 try:
                     # Add fase_id to get production order info when visualizing data
-                    data["fase_id"] = await mesapi_client.get_current_fase_id(prod_line)
+                    data["work_order_num"] = await mesapi_client.get_current_work_order_num(prod_line)
                 except Exception as e:
                     logger.warning(f"MESAPI | {e}")
-                    data["fase_id"] = None
+                    data["work_order_num"] = None
 
                 await mqtt_publisher.publish(data)
             except Exception as e:
@@ -118,13 +172,18 @@ async def main() -> None:
     """Entry point of the script.
 
     Subscribe for data changes to an OPC UA server, store them in an
-    asycronous queue, and publish them via MQTT.
+    asynchronous queue, and publish them via MQTT.
 
-    If connection with the OPC UA server or with the MQTT broker fails, the function
-    will permanently try to reconnect, unless it is manually stopped by the user.
+    If connection with the OPC UA server or with the MQTT broker fails, the 
+    function will continuously attempt to reconnect until the application 
+    is manually stopped by the user via system signals (SIGINT, SIGTERM).
 
     Returns:
         None
+
+    Raises:
+        asyncio.CancelledError: If a stop signal is received and the main 
+            task is cancelled for a clean shutdown.
     """
     
     loop = asyncio.get_running_loop()
@@ -142,7 +201,7 @@ async def main() -> None:
     
 
     config = load_config()
-    manufacturer = config['global']['manufatrurer']
+    manufacturer = config['global']['manufacturer']
     prod_line = config['global']['line']
     client_id = f"{manufacturer}_{prod_line}"
     data_queue = asyncio.Queue(maxsize = 1000)
@@ -196,8 +255,8 @@ async def main() -> None:
                 await opc_client.connect()
                 logger.info(f"OPC UA | Client connected to {opc_client.host}.")
 
+                # Get the nodes to monitor
                 monitored_items = [ s for s in config["opcua_server"]["monitored_items"].split("|") if s.strip() ]
-
                 subscription = await opc_client.subscribe_to_variables(monitored_items, data_queue, period=500)
                 if subscription:
                     logger.info(f"OPC UA | Subscriptions activated for: {monitored_items}.")
@@ -227,13 +286,13 @@ async def main() -> None:
                     pass  # Ignore errors during disconnection of client is already offline
                 await asyncio.sleep(3)
 
-    # It is possible to handle clearing the queue, but it doesn't make sense given that this script
-    # is simply a software bridge between two IoT protocols taht will be installed on edge devices. 
-    # It is not required to ensure reliability or caching of the information
+        # It is possible to handle clearing the queue, but it doesn't make sense given that this script
+        # is simply a software bridge between two IoT protocols taht will be installed on edge devices. 
+        # It is not required to ensure reliability or caching of the information
 
-    device_telemetry.shutdown()
-    publisher_task.cancel()
-    await mqtt_publisher.disconnect()
+        device_telemetry.shutdown()
+        publisher_task.cancel()
+        await mqtt_publisher.disconnect()
 
 
 if __name__ == "__main__":
