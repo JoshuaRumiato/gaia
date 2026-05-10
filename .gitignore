@@ -86,7 +86,7 @@ Thumbs.db
 *.sublime-workspace
 
 # Environment variables
-.env
+*.env
 .env.local
 .env.*.local
 

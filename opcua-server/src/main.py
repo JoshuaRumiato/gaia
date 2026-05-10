@@ -1,28 +1,24 @@
+import os
+import sys
 import random
 import logging
 import asyncio
+from opcua_server_telemetry import OPCServerTelemetry
 from opcua_server import OPCServer
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Required for compatibility between aiomqtt and Python's default event loop for Windows
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-async def simulate_tag_changes(server: OPCServer, duration: int = 60, interval: int = 3):
-    """
-    Simula il cambiamento periodico dei tag per testare la subscription del client.
-    
-    Questa funzione simula uno scenario di macchina con cicli che cambiano lo stato
-    dei tag durante l'esecuzione.
-    
-    Args:
-        duration: Durata totale della simulazione in secondi (default: 60)
-        interval: Intervallo di tempo tra i cambiamenti dei tag in secondi (default: 5)
-    """
+# Initialize the logger for the module
+logger = logging.getLogger("opcua-server-logger")
 
-    start_time = asyncio.get_event_loop().time()
+
+async def simulate_tag_changes(server: OPCServer, interval: int = 3):
     cycle_count = 0
     
     try:
-        while (asyncio.get_event_loop().time() - start_time) < duration:
+        while True:
             cycle_count += 1
             
             # Simulazione con probabilità: cambiamento di stato casuale
@@ -51,34 +47,49 @@ async def simulate_tag_changes(server: OPCServer, duration: int = 60, interval: 
             await asyncio.sleep(interval)  # Wait for the next cycle
     
     except asyncio.CancelledError:
-        logger.info("Simulazione interrotta dall'utente")
+        logger.info("Simulation cancelled.")
     except Exception as e:
-        logger.error(f"Errore durante la simulazione: {e}")
+        logger.error(f"Error during simulation: {e}")
 
 
 async def main():
-    """Funzione principale per avviare il server e la simulazione."""
+    # Setup telemetry
+    server_telemetry = OPCServerTelemetry(
+        endpoint_host = os.getenv("OTEL_HOST"),
+        endpoint_port = int(os.getenv("OTEL_PORT")),
+        service_name = os.getenv("OTEL_SERVICE_NAME"),
+        deployment_environment = os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT"),
+        hostname = os.getenv("MACHINE_ID"),
+    )
+
+    server_telemetry.setup()
+
     # Crea l'istanza del server
-    opc_server = OPCServer(endpoint="opc.tcp://0.0.0.0:4840/freeopcua/server/")
+    opc_server = OPCServer(endpoint=os.getenv("OPCUA_ENDPOINT"))
+    logger.info(f"OPC UA server initialized with endpoint: {opc_server.endpoint}.")
+
     await opc_server.setup()
+    logger.info(f"OPC UA server configured and ready to start.")
     
     server_task = asyncio.create_task(opc_server.start())  # Start the server in background
-    
-    # Avvia la simulazione dei tag con durata limitata (60 secondi)
-    simulation_task = asyncio.create_task(
-        simulate_tag_changes(opc_server, duration=60, interval=3)
-    )
-    
+    logger.info("OPC UA server started and awaiting client connections.")
+
     try:
-        # Attendi il completamento della simulazione
-        await simulation_task
-        logger.info("Simulazione completata")
+        # Avvia la simulazione dei tag
+        interval_seconds = 3
+        simulation_task = asyncio.create_task(
+            simulate_tag_changes(opc_server, interval=interval_seconds)
+        )
+        logger.info(f"Started tag simulation with {interval_seconds}-second intervals.")
+        
+        await simulation_task  # Wait for the simulation to complete (runs indefinitely until cancelled)
     except KeyboardInterrupt:
-        logger.info("Interruzione ricevuta")
+        pass
     finally:
-        # Ferma il server
         server_task.cancel()
         await opc_server.stop()
+        logger.info("OPC UA server stopped.")
+        server_telemetry.shutdown()
 
 
 if __name__ == "__main__":

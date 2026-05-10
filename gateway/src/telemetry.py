@@ -23,7 +23,7 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 
 internal_logger = logging.getLogger("edge-logger")
 
-class Telemetry:
+class GatewayTelemetry:
     """Handler for OpenTelemetry metrics and logs exporting.
 
     Configures OpenTelemetry providers, instruments system metrics,

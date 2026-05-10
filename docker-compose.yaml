@@ -1,6 +1,9 @@
 networks:
-  gaia-network:
+  gaia-infra-network:
     driver: bridge
+  gaia-global-network:
+    driver: bridge
+    external: true
 
 volumes:
   emqx-data:
@@ -30,7 +33,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - gaia-network
+      - gaia-infra-network
 
   # =========================================
   # 2. Fill-DB - Data population script
@@ -48,7 +51,7 @@ services:
     env_file:
       - ./fill-db/.env
     networks:
-      - gaia-network
+      - gaia-infra-network
 
   # =========================================
   # 3. EMQX - MQTT Broker
@@ -69,7 +72,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - gaia-network
+      - gaia-infra-network
 
   # =========================================
   # 4. Grafana - Visualization tool
@@ -95,7 +98,7 @@ services:
       retries: 5
       start_period: 30s
     networks:
-      - gaia-network
+      - gaia-infra-network
 
   # =========================================
   # 5. Server HTTP (Endpoint REST API)
@@ -119,4 +122,5 @@ services:
     env_file:
       - mesapi-server/.env
     networks:
-      - gaia-network
+      - gaia-infra-network
+      - gaia-global-network

@@ -24,13 +24,12 @@ class OPCServer:
     - 4 tag boolean per gli stati macchina: InAlarm, InBypass, InCycle, InWarning
     """
 
-    def __init__(self, endpoint: str = "opc.tcp://0.0.0.0:4840/freeopcua/server/") -> None:
+    def __init__(self, endpoint: str) -> None:
         """
         Initialize the OPCUA server.
         
         Args:
             endpoint (str): OPCUA endpoint URL.
-                Defaults to "opc.tcp://0.0.0.0:4840/freeopcua/server/"
 
         Returns:
             None
@@ -40,7 +39,6 @@ class OPCServer:
         self.channel = None
         self.device = None
         self.tags = {}
-        logger.info(f"Server OPCUA inizializzato con endpoint: {endpoint}")
 
 
     async def setup(self) -> None:
@@ -57,10 +55,8 @@ class OPCServer:
         # Create structure: Channel -> Device -> Tags
 
         self.channel = await objects_node.add_folder(idx, "Channel1")
-        logger.info("Canale 'Channel1' creato")
 
         self.device = await self.channel.add_folder(idx, "Device1")
-        logger.info("Device 'Device1' creato dentro il canale")
         
         self.tags['InAlarm'] = await self.device.add_variable(
             idx, 
@@ -93,22 +89,17 @@ class OPCServer:
             varianttype=ua.VariantType.Boolean
         )
         await self.tags['InWarning'].set_writable(True)
-        
-        logger.info("Tag creati: InAlarm, InBypass, InCycle, InWarning")
 
 
     async def start(self) -> None:
         """Start OPC UA server.."""
         async with self.server:
-            logger.info("Server OPCUA avviato")
-            logger.info(f"Endpoint disponibile su: {self.endpoint}")
             await asyncio.Event().wait()
 
 
     async def stop(self) -> None:
         """Stop OPC UA server."""
         await self.server.stop()
-        logger.info("Server OPCUA fermato")
 
     async def set_tag_value(self, tag_name: str, value: bool) -> None:
         """
