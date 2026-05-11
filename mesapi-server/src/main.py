@@ -1,10 +1,49 @@
 import os
+import logging
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
+from mesapi_server_telemetry import MESAPIServerTelemetry
 
-app = FastAPI(title="MES Simulation API")
+# Initialize the logger for the module
+logger = logging.getLogger("mesapi-server-logger")
+
+# Initialize telemetry instance (will be set up in the lifespan context)
+telemetry: Optional[MESAPIServerTelemetry] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan: startup and shutdown.
+    
+    Handles the initialization and teardown of telemetry on app startup/shutdown.
+    
+    Yields:
+        None
+    """
+    global telemetry
+    
+    # Startup
+    telemetry = MESAPIServerTelemetry(
+        endpoint_host=os.getenv("OTEL_HOST"),
+        endpoint_port=int(os.getenv("OTEL_PORT")),
+        service_name=os.getenv("OTEL_SERVICE_NAME"),
+        deployment_environment=os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT")
+    )
+    telemetry.setup()
+    logger.info("API started.")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutdown invoked.")
+    if telemetry:
+        telemetry.shutdown()
+
+
+app = FastAPI(title="MES Simulation API", lifespan=lifespan)
 
 # Configurazione Database tramite variabili d'ambiente
 user = os.getenv("DB_USER")
@@ -32,28 +71,12 @@ def get_db():
 @app.get("/health")
 def health_check():
     """Endpoint di health check per verificare che il server sia attivo."""
+    logger.info("GET /health called.")
     return {"status": "ok", "message": "MES Simulation API is running."}
 
 
 @app.get("/active-order-id")
 def get_active_order(machine: str, db: Session = Depends(get_db)):
-    """Recupera l'ID dell'ordine di produzione corrente per una specifica linea.
-
-    Esegue una query sul database PostgreSQL per trovare l'ordine con stato 'IN_PROGRESS'
-    associato alla linea di produzione indicata.
-
-    Args:
-        machine (str): Identificativo della macchina di produzione (es. 'LINE_A').
-        db (Session): Istanza della sessione DB iniettata da FastAPI.
-
-    Returns:
-        dict: Un dizionario contenente l'ID dell'ordine attivo.
-            Esempio: {"machine": "LINE_A", "active_order_id": 12345}
-
-    Raises:
-        HTTPException: 404 se non viene trovato alcun ordine attivo per la linea.
-        HTTPException: 500 in caso di errori di connessione al database.
-    """
     query = text("""
         SELECT id 
         FROM orders 
@@ -64,15 +87,20 @@ def get_active_order(machine: str, db: Session = Depends(get_db)):
     try:
         result = db.execute(query, {"line": machine}).fetchone()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {e}")
+        logger.error(f"GET /active-order-id called for machine: {machine}. Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database connection error")
 
     if not result:
+        logger.warning(f"GET /active-order-id called for machine: {machine}. No active order found.")
         raise HTTPException(
             status_code=404, 
             detail=f"No active order found for machine: {machine}"
         )
 
+    order_id = result[0]
+    logger.info(f"GET /active-order-id called for machine: {machine}. Active order ID: {order_id}.")
+    
     return {
         "machine": machine,
-        "active_order_id": result[0]
+        "active_order_id": order_id
     }

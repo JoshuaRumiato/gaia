@@ -60,7 +60,7 @@ class OPCServerTelemetry:
             log_exporter = OTLPLogExporter(endpoint=f"{self.otlp_endpoint}/logs")
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
 
-            log_format = f"MAIA | {self.hostname} | %(message)s"
+            log_format = f"GAIA | {self.hostname} | %(message)s"
             formatter = logging.Formatter(log_format)
 
             # 2. Integrate OpenTelemetry with the standard Python logging module.

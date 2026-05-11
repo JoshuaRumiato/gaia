@@ -47,7 +47,7 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3):
             await asyncio.sleep(interval)  # Wait for the next cycle
     
     except asyncio.CancelledError:
-        logger.info("Simulation cancelled.")
+        pass
     except Exception as e:
         logger.error(f"Error during simulation: {e}")
 
@@ -84,7 +84,7 @@ async def main():
         
         await simulation_task  # Wait for the simulation to complete (runs indefinitely until cancelled)
     except KeyboardInterrupt:
-        pass
+        logger.info("Simulation cancelled.")
     finally:
         server_task.cancel()
         await opc_server.stop()
