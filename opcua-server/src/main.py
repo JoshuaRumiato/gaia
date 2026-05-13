@@ -1,5 +1,6 @@
 import os
 import sys
+import signal
 import random
 import logging
 import asyncio
@@ -53,13 +54,17 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3):
 
 
 async def main():
+
+    machine_id = os.getenv("MACHINE_ID")
+    server_id = f"SRV-{machine_id}"
+
     # Setup telemetry
     server_telemetry = OPCServerTelemetry(
         endpoint_host = os.getenv("OTEL_HOST"),
         endpoint_port = int(os.getenv("OTEL_PORT")),
         service_name = os.getenv("OTEL_SERVICE_NAME"),
         deployment_environment = os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT"),
-        hostname = os.getenv("MACHINE_ID"),
+        hostname = server_id,
     )
 
     server_telemetry.setup()
@@ -74,7 +79,20 @@ async def main():
     server_task = asyncio.create_task(opc_server.start())  # Start the server in background
     logger.info("OPC UA server started and awaiting client connections.")
 
+    def handle_shutdown_signal():
+        logger.info("OPC UA server stopped.")
+        server_task.cancel()
+
     try:
+        # Setup signal handlers for graceful shutdown
+        loop = asyncio.get_running_loop()
+        if sys.platform == "win32":
+            signal.signal(signal.SIGINT, lambda s,f: loop.call_soon_threadsafe(handle_shutdown_signal))
+            signal.signal(signal.SIGTERM, lambda s,f: loop.call_soon_threadsafe(handle_shutdown_signal))
+        else:
+            loop.add_signal_handler(signal.SIGINT, handle_shutdown_signal)
+            loop.add_signal_handler(signal.SIGTERM, handle_shutdown_signal)
+        
         # Avvia la simulazione dei tag
         interval_seconds = 3
         simulation_task = asyncio.create_task(
@@ -85,8 +103,14 @@ async def main():
         await simulation_task  # Wait for the simulation to complete (runs indefinitely until cancelled)
     except KeyboardInterrupt:
         logger.info("Simulation cancelled.")
+    except asyncio.CancelledError:
+        pass
     finally:
         server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
         await opc_server.stop()
         logger.info("OPC UA server stopped.")
         server_telemetry.shutdown()

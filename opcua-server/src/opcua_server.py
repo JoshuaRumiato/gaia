@@ -53,42 +53,26 @@ class OPCServer:
         objects_node = self.server.get_objects_node()
         
         # Create structure: Channel -> Device -> Tags
+        # Using string-based NodeIds to match gateway subscription expectations
 
-        self.channel = await objects_node.add_folder(idx, "Channel1")
+        self.channel = await objects_node.add_folder(
+            ua.NodeId("Channel1", idx),
+            "Channel1"
+        )
 
-        self.device = await self.channel.add_folder(idx, "Device1")
-        
-        self.tags['InAlarm'] = await self.device.add_variable(
-            idx, 
-            "InAlarm", 
-            False,
-            varianttype=ua.VariantType.Boolean
+        self.device = await self.channel.add_folder(
+            ua.NodeId("Channel1.Device1", idx), 
+            "Device1"
         )
-        await self.tags['InAlarm'].set_writable(True)
         
-        self.tags['InBypass'] = await self.device.add_variable(
-            idx, 
-            "InBypass", 
-            False,
-            varianttype=ua.VariantType.Boolean
-        )
-        await self.tags['InBypass'].set_writable(True)
-        
-        self.tags['InCycle'] = await self.device.add_variable(
-            idx, 
-            "InCycle", 
-            False,
-            varianttype=ua.VariantType.Boolean
-        )
-        await self.tags['InCycle'].set_writable(True)
-        
-        self.tags['InWarning'] = await self.device.add_variable(
-            idx, 
-            "InWarning", 
-            False,
-            varianttype=ua.VariantType.Boolean
-        )
-        await self.tags['InWarning'].set_writable(True)
+        for tag in ["InAlarm", "InBypass", "InCycle", "InWarning"]:
+            self.tags[tag] = await self.device.add_variable(
+                ua.NodeId(f"Channel1.Device1.{tag}", idx),
+                tag,
+                False,
+                ua.VariantType.Boolean
+            )
+            await self.tags[tag].set_writable(True)
 
 
     async def start(self) -> None:

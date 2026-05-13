@@ -20,7 +20,7 @@ class AsyncMesAPIClient:
         session (Optional[aiohttp.ClientSession]): The underlying HTTP session.
     """
 
-    def __init__(self, base_url: str = "http://mesapi.xdomain.local/GetActiveWorkOrder") -> None:
+    def __init__(self, base_url: str) -> None:
         """Initialize the client with a base URL.
 
         Args:
@@ -54,15 +54,15 @@ class AsyncMesAPIClient:
             await self.session.close()
 
 
-    async def get_current_work_order_num(self, prod_line: str) -> Optional[int]:
+    async def get_current_order_id(self, machine: str) -> Optional[int]:
         """
-        Fetch the active work order number for a specific production line.
+        Fetch the active work order id for a specific production line.
 
         Send a GET request to the API, validate the response, and extract 
          the 'WorkOrderNum' identifier.
 
         Args:
-            prod_line (str): The name or ID of the production line.
+            machine (str): The name or ID of the machine.
 
         Returns:
             Optional[int]: The current work order number if found.
@@ -74,13 +74,13 @@ class AsyncMesAPIClient:
         if not self.session:
             raise RuntimeError("HTTP Session uninitialized. Use 'async with'.")
 
-        url = f"{self.base_url}/{prod_line}"
+        url = f"{self.base_url}?machine={machine}"
 
         try:
             async with self.session.get(url, timeout=5.0) as response:
                 response.raise_for_status()
                 data = await response.json()
-                return int(data.get("WorkOrderNum"))
+                return int(data.get("active_order_id"))
             
         except Exception as e:
             raise RuntimeError(f'Could not retrieve current fase ID: {e}')

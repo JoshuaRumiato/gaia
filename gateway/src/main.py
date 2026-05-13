@@ -19,7 +19,7 @@ import signal
 import asyncio
 import logging
 
-from telemetry import Telemetry
+from gateway_telemetry import GatewayTelemetry
 from async_opc_client import AsyncOPCClient
 from async_mqtt_publisher import AsyncMQTTPublisher
 from async_mesapi_client import AsyncMesAPIClient
@@ -30,60 +30,13 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Initialize the logger for the module
-logger = logging.getLogger("edge-logger")
-
-
-def load_config() -> dict[str, dict[str, str | int | bool]]:
-    """Load application configuration from environment variables.
-
-    Retrieve settings for global metadata, telemetry, OPC UA server, 
-    and MQTT publisher by reading from the system's environment variables. 
-    Perform type conversion for ports (integer) and boolean flags.
-
-    Returns:
-        dict[str, dict[str, str | int | bool]]: A nested dictionary containing 
-            the categorized configuration parameters.
-
-    Raises:
-        ValueError: If an environment variable expected to be an integer 
-            (e.g., ports) contains an invalid string.
-        TypeError: If a required environment variable is missing (None) 
-            during integer conversion.
-    """
-    return {
-        "global" : {
-            "manufacturer" : os.getenv("MANUFACTURER"),
-            "line" : os.getenv("LINE")
-        },
-        "telemetry": {
-            "host" : os.getenv("OTEL_HOST"),
-            "port" : int(os.getenv("OTEL_PORT")),
-            "service_name" : os.getenv("OTEL_SERVICE_NAME"),
-            "deployment_environment" : os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT")
-        },
-        "opcua_server": {
-            "host" : os.getenv("OPCUA_HOST"),
-            "port" : int(os.getenv("OPCUA_PORT")),
-            "username" : os.getenv("OPCUA_USERNAME"),
-            "password" : os.getenv("OPCUA_PASSWORD"),
-            "monitored_items" : os.getenv("OPCUA_MONITORED_ITEMS")
-        },
-        "mqtt_publisher": {
-            "host" : os.getenv("MQTT_HOST"),
-            "port" : int(os.getenv("MQTT_PORT")),
-            "topic" : os.getenv("MQTT_TOPIC"),
-            "username" : os.getenv("MQTT_USERNAME"),
-            "password" : os.getenv("MQTT_PASSWORD"),
-            "use_tls" : os.getenv("MQTT_USE_TLS") == "true",
-            "transport" : os.getenv("MQTT_TRANSPORT") 
-        }
-    }
+logger = logging.getLogger("gateway-logger")
 
 
 async def publisher_worker(
         mqtt_publisher: AsyncMQTTPublisher,
         mesapi_client: AsyncMesAPIClient, 
-        prod_line: str,
+        machine_id: str,
         queue: asyncio.Queue,
         extra_data: dict[str, str] | None = None,
         max_concurrent: int = 50
@@ -134,11 +87,11 @@ async def publisher_worker(
                     data[key] = extra_data[key]
                 
                 try:
-                    # Add fase_id to get production order info when visualizing data
-                    data["work_order_num"] = await mesapi_client.get_current_work_order_num(prod_line)
+                    # Add order id to get production order info when visualizing data
+                    data["order_id"] = await mesapi_client.get_current_order_id(machine_id)
                 except Exception as e:
                     logger.warning(f"MESAPI | {e}")
-                    data["work_order_num"] = None
+                    data["order_id"] = None
 
                 await mqtt_publisher.publish(data)
             except Exception as e:
@@ -199,56 +152,52 @@ async def main() -> None:
         loop.add_signal_handler(signal.SIGINT, handle_stop_signal)
         loop.add_signal_handler(signal.SIGTERM, handle_stop_signal)
     
-
-    config = load_config()
-    manufacturer = config['global']['manufacturer']
-    prod_line = config['global']['line']
-    client_id = f"{manufacturer}_{prod_line}"
+    machine_id = os.getenv("MACHINE_ID")
+    client_id = f"GW-{machine_id}"
     data_queue = asyncio.Queue(maxsize = 1000)
 
-    device_telemetry = Telemetry(
-        endpoint_host = config['telemetry']['host'],
-        endpoint_port = config['telemetry']['port'],
-        service_name = config['telemetry']['service_name'],
-        deployment_environment = config['telemetry']['deployment_environment'],
-        hostname = client_id,
-        queue = data_queue
+    device_telemetry = GatewayTelemetry(
+        endpoint_host = os.getenv("OTEL_HOST"),
+        endpoint_port = int(os.getenv("OTEL_PORT")),
+        service_name = os.getenv("OTEL_SERVICE_NAME"),
+        deployment_environment = os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT"),
+        hostname = client_id
     )
 
     device_telemetry.setup()
 
     opc_client = AsyncOPCClient(
-        host = config['opcua_server']['host'],
-        port = config['opcua_server']['port'],
-        username = config['opcua_server']['username'],
-        password = config['opcua_server']['password']
+        host = os.getenv("OPCUA_HOST"),
+        port = int(os.getenv("OPCUA_PORT")),
+        username = os.getenv("OPCUA_USERNAME"),
+        password = os.getenv("OPCUA_PASSWORD")
     )
     
     logger.info("OPC UA | Client started.")
 
     mqtt_publisher = AsyncMQTTPublisher(
-        broker = config['mqtt_publisher']['host'],
-        port = config['mqtt_publisher']['port'],  # Cast the value to int (default is str)
-        topic = config['mqtt_publisher']['topic'],
+        broker = os.getenv("MQTT_HOST"),
+        port = int(os.getenv("MQTT_PORT")),
+        topic = os.getenv("MQTT_TOPIC"),
         client_id = client_id,
-        username = config['mqtt_publisher']['username'],
-        password = config['mqtt_publisher']['password'],
-        use_tls = config['mqtt_publisher']['use_tls'],
-        transport = config['mqtt_publisher']['transport']
+        username = os.getenv("MQTT_USERNAME"),
+        password = os.getenv("MQTT_PASSWORD"),
+        use_tls = os.getenv("MQTT_USE_TLS") == "true",
+        transport = os.getenv("MQTT_TRANSPORT")
     )
 
     logger.info("MQTT | Client started.")
 
-    async with AsyncMesAPIClient() as mesapi_client:
+    async with AsyncMesAPIClient(os.getenv("MESAPI_BASE_URL")) as mesapi_client:
 
         logger.info("MESAPI | Client started.")
 
         # Create a background task for the publishing process
         publisher_task = asyncio.create_task(publisher_worker(mqtt_publisher,
                                                               mesapi_client, 
-                                                              prod_line,
+                                                              machine_id,
                                                               data_queue,
-                                                              {"client_id" : client_id}))
+                                                              {"machine_id" : machine_id}))
 
         while True:
             try:
@@ -256,7 +205,7 @@ async def main() -> None:
                 logger.info(f"OPC UA | Client connected to {opc_client.host}.")
 
                 # Get the nodes to monitor
-                monitored_items = [ s for s in config["opcua_server"]["monitored_items"].split("|") if s.strip() ]
+                monitored_items = [ s for s in os.getenv("OPCUA_MONITORED_ITEMS").split("|") if s.strip() ]
                 subscription = await opc_client.subscribe_to_variables(monitored_items, data_queue, period=500)
                 if subscription:
                     logger.info(f"OPC UA | Subscriptions activated for: {monitored_items}.")

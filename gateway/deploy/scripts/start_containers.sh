@@ -30,8 +30,8 @@ if [ ! -d "$ENV_DIR" ]; then
 fi
 
 # Pull the image from the registry
-log_message "Pulling image..."
-docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
+# log_message "Pulling image..."
+# docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
 
 # Start containers
 for env_file in "$ENV_DIR"/*.env; do
@@ -49,6 +49,7 @@ for env_file in "$ENV_DIR"/*.env; do
         if docker run -d \
                 --name "$file_name" \
                 --env-file "$env_file" \
+                --network gaia-global-network \
                 --restart unless-stopped \
                 $IMAGE_NAME >> $LOG_FILE 2>&1; then
             log_message "INFO: Container successfully started for $file_name"

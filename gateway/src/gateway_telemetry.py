@@ -10,18 +10,13 @@ import logging
 import asyncio
 from typing import Literal, Optional
 
-from opentelemetry import metrics
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 
-internal_logger = logging.getLogger("edge-logger")
+internal_logger = logging.getLogger("gateway-logger")
 
 class GatewayTelemetry:
     """Handler for OpenTelemetry metrics and logs exporting.
@@ -50,8 +45,7 @@ class GatewayTelemetry:
         endpoint_port: int,
         service_name: str,
         deployment_environment: Literal["development", "production"],
-        hostname: str,
-        queue: asyncio.Queue
+        hostname: str
     ) -> None:
         """Initialize the Telemetry object with the given configuration.
 
@@ -84,7 +78,6 @@ class GatewayTelemetry:
         self.service_name = service_name
         self.deployment_environment = deployment_environment
         self.hostname = hostname
-        self.queue = queue
         self.resource = Resource.create({
             "service.name": self.service_name,
             "deployment.environment": self.deployment_environment,
@@ -93,7 +86,6 @@ class GatewayTelemetry:
         self.otlp_endpoint = f"http://{self.endpoint_host}:{self.endpoint_port}"
 
         self.logger_provider: Optional[LoggerProvider] = None
-        self.meter_provider: Optional[MeterProvider] = None
         self.is_initialized = False
 
 
@@ -102,12 +94,8 @@ class GatewayTelemetry:
 
         Perform the following initialization steps:
         - Set up the LoggerProvider with an OTLP gRPC exporter.
-        - Configure the standard Python logging module to route 'edge-logger' 
+        - Configure the standard Python logging module to route 'gateway-logger' 
           logs through OpenTelemetry.
-        - Set up the MeterProvider with a periodic OTLP exporter.
-        - Start the SystemMetricsInstrumentor to capture hardware metrics.
-        - Register a custom observable gauge for monitoring the size 
-          of the provided asynchronous queue.
 
         Returns:
             None
@@ -133,32 +121,32 @@ class GatewayTelemetry:
             formatter = logging.Formatter(log_format)
 
             # 2. Integrate OpenTelemetry with the standard Python logging module.
-            # Attach the handler to the 'edge-logger' so that any standard log 
+            # Attach the handler to the 'gateway-logger' so that any standard log 
             # message is automatically converted and exported via OTLP.
             handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
             handler.setFormatter(formatter)
-            edge_logger = logging.getLogger("edge-logger")
-            edge_logger.addHandler(handler)
-            edge_logger.setLevel(logging.INFO)
-            edge_logger.propagate = False
+            gateway_logger = logging.getLogger("gateway-logger")
+            gateway_logger.addHandler(handler)
+            gateway_logger.setLevel(logging.INFO)
+            gateway_logger.propagate = False
             
-            # 3. Metrics setup
-            metric_exporter = OTLPMetricExporter(endpoint=f"{self.otlp_endpoint}/metrics")
-            reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=15000)
-            meter_provider = MeterProvider(resource=self.resource, metric_readers=[reader])
-            metrics.set_meter_provider(meter_provider)
+            # # 3. Metrics setup
+            # metric_exporter = OTLPMetricExporter(endpoint=f"{self.otlp_endpoint}/metrics")
+            # reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=15000)
+            # meter_provider = MeterProvider(resource=self.resource, metric_readers=[reader])
+            # metrics.set_meter_provider(meter_provider)
 
-            # 4. Start SystemMetricsInstrumentor to automatically collect and export standard host metrics
-            SystemMetricsInstrumentor().instrument()
+            # # 4. Start SystemMetricsInstrumentor to automatically collect and export standard host metrics
+            # SystemMetricsInstrumentor().instrument()
             
-            # 5. Create a custom metric to monitor the internal data queue size
-            meter = metrics.get_meter("edge-queue-metrics")
-            meter.create_observable_gauge(
-                name="queue_size",
-                callbacks=[lambda options: [metrics.Observation(self.queue.qsize())]],
-                description="No. of messagges waiting to be published",
-                unit="1"
-            )
+            # # 5. Create a custom metric to monitor the internal data queue size
+            # meter = metrics.get_meter("edge-queue-metrics")
+            # meter.create_observable_gauge(
+            #     name="queue_size",
+            #     callbacks=[lambda options: [metrics.Observation(self.queue.qsize())]],
+            #     description="No. of messagges waiting to be published",
+            #     unit="1"
+            # )
 
             self.is_initialized = True
             # internal_logger.info("Telemetry successfully initialized.")
@@ -185,15 +173,10 @@ class GatewayTelemetry:
 
         try:
             if self.logger_provider:
-                self.logger_provider.force_flush()
                 self.logger_provider.shutdown()
-            if self.meter_provider:
-                self.meter_provider.force_flush()
-                self.meter_provider.shutdown()
         except Exception as e:
             pass
             # internal_logger.error(f"Failed to shutdown telemetry: {e}")
         finally:
             self.logger_provider = None
-            self.meter_provider = None
             self.is_initialized = False
