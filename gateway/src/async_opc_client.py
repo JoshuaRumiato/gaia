@@ -91,7 +91,7 @@ class SubscriptionHandler:
             'timestamp': timestamp,
             'variable': node_info["name"],
             'type': node_info["type"],
-            'value': val
+            'value': int(val)
         }
         
         try:

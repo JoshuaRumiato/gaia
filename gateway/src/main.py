@@ -152,7 +152,7 @@ async def main() -> None:
         loop.add_signal_handler(signal.SIGINT, handle_stop_signal)
         loop.add_signal_handler(signal.SIGTERM, handle_stop_signal)
     
-    machine_id = os.getenv("MACHINE_ID")
+    machine_id = int(os.getenv("MACHINE_ID"))
     client_id = f"GW-{machine_id}"
     data_queue = asyncio.Queue(maxsize = 1000)
 

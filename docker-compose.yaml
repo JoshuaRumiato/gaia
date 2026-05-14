@@ -57,7 +57,7 @@ services:
   # 3. EMQX - MQTT Broker
   # =========================================
   emqx:
-    image: emqx:5.5
+    image: emqx/emqx:latest
     container_name: gaia-emqx
     restart: unless-stopped
     ports:
