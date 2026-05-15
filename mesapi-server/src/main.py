@@ -1,7 +1,16 @@
+"""
+Main entry point for the MES API server.
+
+This module sets up a FastAPI application, to simulate MES operations.
+It handles database connections via SQLAlchemy, implements application lifespan
+management for telemetry initialization and shutdown, and provides endpoints 
+for health checks and active prodction order retrieval.
+"""
+
 import os
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import AsyncGenerator, Generator, Optional, Any
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
@@ -15,14 +24,23 @@ telemetry: Optional[MESAPIServerTelemetry] = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage application lifespan: startup and shutdown.
-    
-    Handles the initialization and teardown of telemetry on app startup/shutdown.
-    
-    Yields:
-        None
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None, None]:
     """
+    Manage application startup and shutdown lifecycle.
+    
+    Initialize the OpenTelemetry integration using environment variables 
+    and ensure proper resource cleanup upon application shutdown.
+
+    Args:
+        app (FastAPI): FastAPI application instance.
+
+    Yields:
+        None: Control back to the FastAPI framework during app execution.
+
+    Raises:
+        TypeError: If port environment variable cannot be cast to an integer.
+    """
+
     global telemetry
     
     # Startup
@@ -45,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MES Simulation API", lifespan=lifespan)
 
-# Configurazione Database tramite variabili d'ambiente
+# Database configuration using environment variables
 user = os.getenv("DB_USER")
 password = os.getenv("DB_PASSWORD")
 host = os.getenv("DB_HOST")
@@ -56,11 +74,15 @@ DB_URL = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
 engine = create_engine(DB_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_db():
-    """Generator per la sessione del database.
-    
+def get_db() -> Generator[Session, None, None]:
+    """
+    Provide a transactional scope for database operations.
+
+    Create a new SQLAlchemy session for a single request and ensure
+    the connection is closed after the request is processed.
+
     Yields:
-        Session: Connessione al database SQLAlchemy.
+        Generator[Session, None, None]: A SQLAlchemy database session object.
     """
     db = SessionLocal()
     try:
@@ -68,15 +90,39 @@ def get_db():
     finally:
         db.close()
 
+
 @app.get("/health")
-def health_check():
-    """Endpoint di health check per verificare che il server sia attivo."""
+def health_check() -> dict[str, str]:
+    """
+    Verify the operational status of the API server.
+
+    Returns:
+        dict[str, str]: Dictionary containing the status and confirmation message 
+    """
     logger.info("GET /health called.")
     return {"status": "ok", "message": "MES Simulation API is running."}
 
 
 @app.get("/active-order-id")
-def get_active_order(machine: str, db: Session = Depends(get_db)):
+def get_active_order(machine: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """
+    Retrieve the currently active order ID for a specific machine.
+
+    Query the database for an order assigned to the given machine ID
+    where the current time falls between the order's start and end timestamps.
+    
+    Args:
+        machine (str): Identifier of the machine.
+        db (Session): Database session provided by dependency injection.
+
+    Returns:
+        dict[str, Any]: Dictionary containing the machine ID and active order ID.
+
+    Raises:
+        HTTPException: 500 status code if a database error occurs.
+        HTTPException: 404 status code if no active order is found for the machine
+    """
+
     query = text("""
         SELECT id 
         FROM orders 

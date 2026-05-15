@@ -10,8 +10,19 @@ from typing import List, Tuple, Dict
 from database_connection import DatabaseConnection
 from config import *
 
-def create_schema(db: DatabaseConnection):
-    """Create database schema if tables don't exist."""
+def create_schema(db: DatabaseConnection) -> None:
+    """Create database schema with tables and indexes.
+    
+    Create or recreate the database schema including articles, orders,
+    and order_progress_statements tables, with appropriate constraints
+    and indexes for performance optimization.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+    
+    Returns:
+        None
+    """
     print("\n[PHASE 0] Creating schema...")
     
     # Drop existing tables if they exist (for idempotency)
@@ -71,7 +82,15 @@ def create_schema(db: DatabaseConnection):
 
 
 def phase_1_generate_articles(db: DatabaseConnection) -> List[Tuple[str, str]]:
-    """PHASE 1: Generate and insert articles."""
+    """
+    Generate and insert articles into the database.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+    
+    Returns:
+        List[Tuple[str, str]]: List of tuples containing (article_id, description) pairs.
+    """
     print("\n[PHASE 1] Generating articles...")
     
     articles_data = []
@@ -87,7 +106,16 @@ def phase_1_generate_articles(db: DatabaseConnection) -> List[Tuple[str, str]]:
 
 
 def phase_2_generate_orders(db: DatabaseConnection) -> Dict[int, Dict]:
-    """PHASE 2: Generate and insert orders with round-robin machine assignment."""
+    """
+    Generate and insert orders with round-robin machine assignment.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+    
+    Returns:
+        Dict[int, Dict]: Dictionary mapping order IDs to order metadata (article_id,
+        machine_id, target_qty).
+    """
     print("\n[PHASE 2] Generating orders...")
     
     random.seed(RANDOM_SEED)
@@ -95,7 +123,7 @@ def phase_2_generate_orders(db: DatabaseConnection) -> Dict[int, Dict]:
     orders_map = {}  # order_id -> {machine_id, target_qty, article_id}
     
     for i in range(NUM_ARTICLES * ORDERS_PER_ARTICLE):
-        # Sequenziale article assignment
+        # Sequential article assignment
         article_idx = (i // ORDERS_PER_ARTICLE) % NUM_ARTICLES
         article_id = ARTICLES[article_idx]
         
@@ -133,10 +161,19 @@ def phase_2_generate_orders(db: DatabaseConnection) -> Dict[int, Dict]:
 
 
 def phase_3_generate_progress_statements(db: DatabaseConnection, orders_map: Dict[int, Dict]) -> List[Tuple]:
-    """PHASE 3: Generate progress statements for all orders.
+    """
+    Generate progress statements for all orders.
     
-    Generates progress statements sequentially for each machine,
+    Generate progress statements sequentially for each machine,
     accumulating them in a global list for later ordering and insertion.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+        orders_map (Dict[int, Dict]): Dictionary mapping order IDs to order metadata.
+    
+    Returns:
+        List[Tuple]: List of tuples containing (order_id, timestamp, produced_qty,
+        discarded_qty).
     """
     print("\n[PHASE 3] Generating progress statements...")
     
@@ -172,7 +209,7 @@ def phase_3_generate_progress_statements(db: DatabaseConnection, orders_map: Dic
             
             # Generate statements for this order until target is reached
             while quantità_netta < target_qty:
-                # Increment time by 10-20 minutes
+                # Increment time by interval minutes (10-20)
                 current_time += timedelta(minutes=random.uniform(INTERVAL_MIN, INTERVAL_MAX))
                 
                 # Generate produced and discarded quantities
@@ -190,8 +227,17 @@ def phase_3_generate_progress_statements(db: DatabaseConnection, orders_map: Dic
     return all_statements
 
 
-def phase_4_insert_progress_statements(db: DatabaseConnection, all_statements: List[Tuple]):
-    """PHASE 4: Sort globally by timestamp and insert into database."""
+def phase_4_insert_progress_statements(db: DatabaseConnection, all_statements: List[Tuple]) -> None:
+    """
+    Sort progress statements by timestamp and insert into database.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+        all_statements (List[Tuple]): List of progress statement tuples to insert.
+    
+    Returns:
+        None
+    """
     print("\n[PHASE 4] Sorting and inserting progress statements...")
     
     # Sort by timestamp
@@ -209,8 +255,16 @@ def phase_4_insert_progress_statements(db: DatabaseConnection, all_statements: L
     print(f"✓ All {len(all_statements)} progress statements inserted")
 
 
-def phase_5_calculate_dates(db: DatabaseConnection, orders_map: Dict[int, Dict]):
-    """PHASE 5: Calculate and update start_date and end_date retroactively."""
+def phase_5_calculate_dates(db: DatabaseConnection) -> None:
+    """
+    Calculate start_date and end_date for each order based on progress statements.
+
+    Args:
+        db (DatabaseConnection): Database connection instance.
+
+    Returns:
+        None
+    """
     print("\n[PHASE 5] Calculating start_date and end_date...")
     
     # Get first and last timestamp for each order
@@ -233,17 +287,37 @@ def phase_5_calculate_dates(db: DatabaseConnection, orders_map: Dict[int, Dict])
 
 
 def is_database_already_populated(db: DatabaseConnection) -> bool:
-    """Check if database is already populated by verifying if articles exist."""
-    try:
-        db.execute("SELECT COUNT(*) FROM articles;")
-        count = db.cursor.fetchone()[0]
-        return count > 0
-    except Exception:
-        # Table doesn't exist or connection failed, so DB is not populated
-        return False
+    """Check if the database is already populated.
+    
+    Verify if articles exist in the database to determine if the
+    database has been previously populated.
+    
+    Args:
+        db (DatabaseConnection): Database connection instance.
+    
+    Returns:
+        True if articles table contains data, False otherwise.
+    """
+    db.execute("SELECT COUNT(*) FROM articles;")
+    count = db.cursor.fetchone()[0]
+    return count > 0
 
 
 def main() -> None:
+    """
+    Execute the MES database population process.
+    
+    Orchestrate the five phases of database population: schema creation,
+    article generation, order generation, progress statement generation
+    and insertion, and date calculation. Includes idempotency check to
+    skip if database is already populated.
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: If any phase fails, the transaction is rolled back.
+    """
     print("=" * 60)
     print("MES DATABASE POPULATION SCRIPT")
     print("=" * 60)
@@ -252,7 +326,7 @@ def main() -> None:
     try:
         db.connect()
         
-        # Check if database is already populated
+        # Check idempotency: skip if database is already populated
         if is_database_already_populated(db):
             print("\n✓ Database already populated, skipping fill-db")
             print("=" * 60)
@@ -260,16 +334,14 @@ def main() -> None:
         
         create_schema(db)
         
-        # Phase 1: Articles
+        # Execute phases sequentially
         phase_1_generate_articles(db)
-        
-        # Phase 2: Orders
         orders_map = phase_2_generate_orders(db)
         
         # Phase 3-5: Progress statements
         all_statements = phase_3_generate_progress_statements(db, orders_map)
         phase_4_insert_progress_statements(db, all_statements)
-        phase_5_calculate_dates(db, orders_map)
+        phase_5_calculate_dates(db)
         
         print("\n" + "=" * 60)
         print("✓ Database population completed successfully!")

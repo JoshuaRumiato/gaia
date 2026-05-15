@@ -19,7 +19,8 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 internal_logger = logging.getLogger("mesapi-server-logger")
 
 class MESAPIServerTelemetry:
-    """Handler for OpenTelemetry logging exporting.
+    """
+    Handler for OpenTelemetry logging exporting.
 
     Configures OpenTelemetry logger provider and integrates it with 
     Python's standard logging module to export structured logs to 
@@ -31,7 +32,6 @@ class MESAPIServerTelemetry:
         service_name (str): Identifier for the service generating telemetry.
         deployment_environment (Literal["development", "production"]): 
             Target environment of the deployment.
-        hostname (str): Unique identifier for the host device.
         resource (Resource): OpenTelemetry resource containing metadata.
         otlp_endpoint (str): Formatted URL for the OTLP gRPC endpoint.
         logger_provider (LoggerProvider, optional): Internal provider for logs.
@@ -45,7 +45,8 @@ class MESAPIServerTelemetry:
         service_name: str,
         deployment_environment: Literal["development", "production"]
     ) -> None:
-        """Initialize the Telemetry object with the given configuration.
+        """
+        Initialize the Telemetry object with the given configuration.
 
         Construct the OpenTelemetry Resource metadata and format 
         the OTLP endpoint URL.
@@ -56,7 +57,6 @@ class MESAPIServerTelemetry:
             service_name (str): Name of the service to attach to telemetry data.
             deployment_environment (Literal["development", "production"]): 
                 Tag indicating the current environment.
-            hostname (str): Unique client identifier (e.g., Hostname + MAC).
 
         Returns:
             None
@@ -87,20 +87,18 @@ class MESAPIServerTelemetry:
         self.logger_provider: Optional[LoggerProvider] = None
         self.is_initialized = False
 
-    def setup(self) -> None:
-        """Configure and start the OpenTelemetry logger provider and exporter.
 
-        Perform the following initialization steps:
-        - Set up the LoggerProvider with an OTLP gRPC exporter.
-        - Configure the standard Python logging module to route logs 
-          through OpenTelemetry.
+    def setup(self) -> None:
+        """
+        Configure and start the OpenTelemetry logger provider and exporter.
 
         Returns:
             None
 
         Raises:
-            Exception: If initialization fails, the error is caught and 
-                a shutdown is attempted.
+            Exception: If any part of the initialization fails, the error is 
+                caught and a shutdown is attempted to ensure partial
+                resources are cleaned up.
         """
 
         if self.is_initialized:
@@ -131,8 +129,10 @@ class MESAPIServerTelemetry:
         except Exception as e:
             self.shutdown()
 
+
     def shutdown(self) -> None:
-        """Safely shut down the OpenTelemetry logger provider.
+        """
+        Safely shut down the OpenTelemetry logger provider.
 
         Ensure that all pending logs are flushed to the configured endpoint 
         before the application instance is destroyed. Reset the provider 

@@ -1,9 +1,9 @@
 """
-Telemetry management module.
+Telemetry management module for OpenTelemetry integration.
 
-Provides a wrapper class to configure and manage OpenTelemetry (OTel) 
-metrics and logging. It facilitates the export of system metrics, 
-custom metrics, and structured logs to an OTLP-compatible endpoint.
+Provides a wrapper class to configure and manage OpenTelemetry (OTel)
+logging. Facilitates the export of structured logs to an OTLP-compatible
+endpoint and integrates with Python's standard logging module.
 """
 
 import logging
@@ -19,24 +19,23 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 internal_logger = logging.getLogger("gateway-logger")
 
 class GatewayTelemetry:
-    """Handler for OpenTelemetry metrics and logs exporting.
-
-    Configures OpenTelemetry providers, instruments system metrics,
-    and establishes a custom observable gauge to monitor the status 
-    of an asynchronous message queue.
+    """
+    Manages OpenTelemetry logging for gateway services.
+    
+    Configures OpenTelemetry providers and integrates with the standard
+    Python logging module to export structured logs to an OTLP-compatible
+    endpoint.
 
     Attributes:
-        endpoint_host (str): Hostname or IP of the OTLP endpoint.
-        endpoint_port (int): Port of the OTLP endpoint.
-        service_name (str): Identifier for the service generating telemetry.
-        deployment_environment (Literal["development", "production"]): 
-            Target environment of the deployment.
-        hostname (str): Unique identifier for the host device.
-        queue (asyncio.Queue): Asynchronous queue to monitor its size.
-        resource (Resource): OpenTelemetry resource containing metadata.
-        otlp_endpoint (str): Formatted URL for the OTLP gRPC endpoint.
-        logger_provider (LoggerProvider, optional): Internal provider for logs.
-        meter_provider (MeterProvider, optional): Internal provider for metrics.
+        endpoint_host: Hostname or IP of the OTLP endpoint.
+        endpoint_port: Port of the OTLP endpoint.
+        service_name: Identifier for the service generating telemetry.
+        deployment_environment: Target environment ('development' or 'production').
+        hostname: Unique identifier for the host device.
+        resource: OpenTelemetry resource containing metadata.
+        otlp_endpoint: Formatted URL for the OTLP gRPC endpoint.
+        logger_provider: Internal provider for logs (None until initialized).
+        is_initialized: Boolean indicating initialization status.
     """
 
     def __init__(
@@ -47,19 +46,18 @@ class GatewayTelemetry:
         deployment_environment: Literal["development", "production"],
         hostname: str
     ) -> None:
-        """Initialize the Telemetry object with the given configuration.
+        """
+        Initialize the GatewayTelemetry object.
 
         Construct the OpenTelemetry Resource metadata and format 
-        the OTLP endpoint URL.
+        the OTLP endpoint URL for later initialization.
 
         Args:
             endpoint_host (str): Network address of the OTLP collector.
             endpoint_port (int): Network port of the OTLP collector.
             service_name (str): Name of the service to attach to telemetry data.
-            deployment_environment (Literal["development", "production"]): 
-                Tag indicating the current environment.
-            hostname (str): Unique client identifier (e.g., Hostname + MAC).
-            queue (asyncio.Queue): Asyncio queue to be monitored by custom metrics.
+            deployment_environment (Literal["development", "production"]): Tag indicating the current environment.
+            hostname (str): Unique client identifier (e.g., hostname or hostname+MAC).
 
         Returns:
             None
@@ -90,39 +88,36 @@ class GatewayTelemetry:
 
 
     def setup(self) -> None:
-        """Configure and start the OpenTelemetry providers and exporters.
+        """
+        Configure and initialize OpenTelemetry providers and exporters.
 
-        Perform the following initialization steps:
-        - Set up the LoggerProvider with an OTLP gRPC exporter.
-        - Configure the standard Python logging module to route 'gateway-logger' 
-          logs through OpenTelemetry.
+        Perform initialization steps:
+        - Set up LoggerProvider with OTLP gRPC exporter
+        - Configure Python logging module to route gateway logs through OTel
+        - Skip if already initialized (idempotent)
 
         Returns:
             None
 
         Raises:
-            Exception: If any part of the initialization fails, the error is 
-                caught, and a shutdown is attempted to ensure partial 
-                resources are cleaned up.
+            Exception: Errors are caught and logged; shutdown is called to
+                clean up any partially initialized resources.
         """
 
         if self.is_initialized:
-            # internal_logger.warning("Telemetry already initalized.")
             return
         
         try:
-            # 1. LoggerProvider and log format setup
+            # Set up LoggerProvider and log format
             logger_provider = LoggerProvider(self.resource)
             set_logger_provider(logger_provider)
             log_exporter = OTLPLogExporter(endpoint=f"{self.otlp_endpoint}/logs")
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
 
-            log_format = f"MAIA | {self.hostname} | %(message)s"
+            log_format = f"GAIA | {self.hostname} | %(message)s"
             formatter = logging.Formatter(log_format)
 
-            # 2. Integrate OpenTelemetry with the standard Python logging module.
-            # Attach the handler to the 'gateway-logger' so that any standard log 
-            # message is automatically converted and exported via OTLP.
+            # Integrate with standard Python logging module
             handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
             handler.setFormatter(formatter)
             gateway_logger = logging.getLogger("gateway-logger")
@@ -130,53 +125,34 @@ class GatewayTelemetry:
             gateway_logger.setLevel(logging.INFO)
             gateway_logger.propagate = False
             
-            # # 3. Metrics setup
-            # metric_exporter = OTLPMetricExporter(endpoint=f"{self.otlp_endpoint}/metrics")
-            # reader = PeriodicExportingMetricReader(metric_exporter, export_interval_millis=15000)
-            # meter_provider = MeterProvider(resource=self.resource, metric_readers=[reader])
-            # metrics.set_meter_provider(meter_provider)
-
-            # # 4. Start SystemMetricsInstrumentor to automatically collect and export standard host metrics
-            # SystemMetricsInstrumentor().instrument()
-            
-            # # 5. Create a custom metric to monitor the internal data queue size
-            # meter = metrics.get_meter("edge-queue-metrics")
-            # meter.create_observable_gauge(
-            #     name="queue_size",
-            #     callbacks=[lambda options: [metrics.Observation(self.queue.qsize())]],
-            #     description="No. of messagges waiting to be published",
-            #     unit="1"
-            # )
-
+            self.logger_provider = logger_provider
             self.is_initialized = True
-            # internal_logger.info("Telemetry successfully initialized.")
         except Exception as e:
-            # internal_logger.error(f"Failed to initialize telemetry: {e}")
             self.shutdown()
 
 
     def shutdown(self) -> None:
-        """Safely shut down the OpenTelemetry providers.
+        """
+        Safely shut down OpenTelemetry providers.
 
-        Ensure that all pending logs and metrics are flushed to the 
-        configured endpoints before the application instance is destroyed.
-        Reset the provider attributes and the initialization flag.
+        Ensure that all pending logs are flushed to the configured endpoint
+        before the application instance is destroyed. Reset the provider
+        attributes and the initialization flag.
 
         Returns:
             None
 
         Raises:
-            Exception: Internal errors during the flushing or shutdown process 
-                are caught and suppressed to prevent interruption of the 
-                application's exit sequence.
+            Exception: Errors during flushing or shutdown are caught and
+                suppressed to prevent interruption of exit sequence.
         """
 
         try:
             if self.logger_provider:
+                self.logger_provider.force_flush()
                 self.logger_provider.shutdown()
         except Exception as e:
             pass
-            # internal_logger.error(f"Failed to shutdown telemetry: {e}")
         finally:
             self.logger_provider = None
             self.is_initialized = False

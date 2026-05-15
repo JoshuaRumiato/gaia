@@ -1,9 +1,9 @@
-"""
-Telemetry management module.
+"""Telemetry management module for OpenTelemetry integration.
 
-Provides a wrapper class to configure and manage OpenTelemetry (OTel) 
-metrics and logging. It facilitates the export of system metrics, 
-custom metrics, and structured logs to an OTLP-compatible endpoint.
+Provides a wrapper class to configure and manage OpenTelemetry (OTel)
+logging for OPC UA server instances. Facilitates the export of structured
+logs to an OTLP-compatible endpoint and integrates with Python's standard
+logging module.
 """
 
 import logging
@@ -18,6 +18,24 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 internal_logger = logging.getLogger("opcua-server-logger")
 
 class OPCServerTelemetry:
+    """
+    Manages OpenTelemetry logging for OPC UA server services.
+    
+    Configures OpenTelemetry providers and integrates with the standard
+    Python logging module to export structured logs to an OTLP-compatible
+    endpoint.
+
+    Attributes:
+        endpoint_host: Hostname or IP of the OTLP endpoint.
+        endpoint_port: Port of the OTLP endpoint.
+        service_name: Identifier for the service generating telemetry.
+        deployment_environment: Target environment ('development' or 'production').
+        hostname: Unique identifier for the host device.
+        resource: OpenTelemetry resource containing metadata.
+        otlp_endpoint: Formatted URL for the OTLP gRPC endpoint.
+        logger_provider: Internal provider for logs (None until initialized).
+        is_initialized: Boolean indicating initialization status.
+    """
 
     def __init__(
         self,
@@ -27,6 +45,23 @@ class OPCServerTelemetry:
         deployment_environment: Literal["development", "production"],
         hostname: str,
     ) -> None:
+        """
+        Initialize the OPCServerTelemetry object.
+
+        Args:
+            endpoint_host (str): Network address of the OTLP collector.
+            endpoint_port (int): Network port of the OTLP collector.
+            service_name (str): Name of the service to attach to telemetry data.
+            deployment_environment (Literal["development", "production"]): Tag indicating the current environment.
+            hostname (str): Unique client identifier (e.g., hostname or hostname+MAC).
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If the deployment_environment is not 'development' 
+                or 'production'.
+        """
 
         valid_deployment_envs = ["development", "production"]
         if deployment_environment not in valid_deployment_envs:
@@ -49,12 +84,27 @@ class OPCServerTelemetry:
 
 
     def setup(self) -> None:
+        """
+        Configure and initialize OpenTelemetry providers and exporters.
+
+        Perform initialization steps:
+        - Set up LoggerProvider with OTLP gRPC exporter
+        - Configure Python logging module to route OPC UA server logs through OTel
+        - Skip if already initialized (idempotent)
+
+        Returns:
+            None
+
+        Raises:
+            Exception: Errors are caught and logged; shutdown is called to
+                clean up any partially initialized resources.
+        """
+        
         if self.is_initialized:
-            # internal_logger.warning("Telemetry already initalized.")
             return
         
         try:
-            # 1. LoggerProvider and log format setup
+            # Set up LoggerProvider and log format
             logger_provider = LoggerProvider(self.resource)
             set_logger_provider(logger_provider)
             log_exporter = OTLPLogExporter(endpoint=f"{self.otlp_endpoint}/logs")
@@ -63,37 +113,34 @@ class OPCServerTelemetry:
             log_format = f"GAIA | {self.hostname} | %(message)s"
             formatter = logging.Formatter(log_format)
 
-            # 2. Integrate OpenTelemetry with the standard Python logging module.
-            # Attach the handler to the 'edge-logger' so that any standard log 
-            # message is automatically converted and exported via OTLP.
+            # Integrate with standard Python logging module
             handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
             handler.setFormatter(formatter)
-            edge_logger = logging.getLogger("opcua-server-logger")
-            edge_logger.addHandler(handler)
-            edge_logger.setLevel(logging.INFO)
-            edge_logger.propagate = False
+            opc_logger = logging.getLogger("opcua-server-logger")
+            opc_logger.addHandler(handler)
+            opc_logger.setLevel(logging.INFO)
+            opc_logger.propagate = False
 
+            self.logger_provider = logger_provider
             self.is_initialized = True
-            # internal_logger.info("Telemetry successfully initialized.")
         except Exception as e:
-            # internal_logger.error(f"Failed to initialize telemetry: {e}")
             self.shutdown()
 
 
     def shutdown(self) -> None:
-        """Safely shut down the OpenTelemetry providers.
+        """
+        Safely shut down OpenTelemetry providers.
 
-        Ensure that all pending logs and metrics are flushed to the 
-        configured endpoints before the application instance is destroyed.
-        Reset the provider attributes and the initialization flag.
+        Ensure that all pending logs are flushed to the configured endpoint
+        before the application instance is destroyed. Reset the provider
+        attributes and the initialization flag.
 
         Returns:
             None
 
         Raises:
-            Exception: Internal errors during the flushing or shutdown process 
-                are caught and suppressed to prevent interruption of the 
-                application's exit sequence.
+            Exception: Errors during flushing or shutdown are caught and
+                suppressed to prevent interruption of exit sequence.
         """
 
         try:
@@ -102,7 +149,6 @@ class OPCServerTelemetry:
                 self.logger_provider.shutdown()
         except Exception as e:
             pass
-            # internal_logger.error(f"Failed to shutdown telemetry: {e}")
         finally:
             self.logger_provider = None
             self.is_initialized = False

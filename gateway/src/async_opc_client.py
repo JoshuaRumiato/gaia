@@ -1,8 +1,9 @@
 """
-Asyncronous OPC UA client interface module
+Asynchronous OPC UA client interface module.
 
-Provide a wrapper class for the OPC UA protocol to simplify 
-connection management and data interaction with OPC UA servers.
+Provides a wrapper class for the OPC UA protocol to simplify connection
+management and data interaction with OPC UA servers, including subscription
+handling for data change notifications.
 """
 
 import datetime
@@ -12,24 +13,26 @@ from typing import Optional, Any
 import asyncua
 
 class SubscriptionHandler:
-    """Internal handler for data change notifications from an OPC UA subscription
-
+    """
+    Handles data change notifications from an OPC UA subscription.
+    
     Process incoming server notifications by mapping technical NodeIds 
-    to human-readable names. This mapping prevents redundant asyncronous
-    network requests for BrowseName.
+    to human-readable names. This mapping prevents redundant asynchronous
+    network requests for BrowseName resolution.
 
     Attributes:
-        node_mapping (dict[str, str]): Object mapping NodeId strings to their 
-            corresponding BrowseNames.
-        queue (asyncio.Queue): Asyncronouse queue used as communication buffer.
+        node_mapping (dict[str, str]): Dictionary mapping NodeId strings to node metadata
+            (name and type).
+        queue (asyncio.Queue): Asynchronous queue used as communication buffer.
     """
 
     def __init__(self, node_mapping: dict[str, str], queue: asyncio.Queue) -> None:
-        """Initializes the SubscriptionHandler with a node map and a message queue.
+        """
+        Initialize the SubscriptionHandler.
         
         Args:
             node_mapping (dict[str, str]): Map used for fast variable name resolution.
-            queue (asyncio.Queue): Asyncronous queue used to store and share data.
+            queue (asyncio.Queue): Asynchronous queue used to store and share data.
         
         Returns:
             None
@@ -39,15 +42,15 @@ class SubscriptionHandler:
         self.queue = queue
 
 
-    def status_change_notification(self, val) -> None:
-        """Handle status change notifications from the OPC UA server.
+    def status_change_notification(self, val: Any) -> None:
+        """
+        Handle status change notifications from the OPC UA server.
 
         Monitor the subscription status and raise an error if the connection 
         state becomes invalid or unhealthy.
 
         Args:
-            val (asyncua.ua.uatypes.StatusChangeNotification): Object containing 
-                 details about the subscription status change.
+            val (Any): Object containing details about the subscription status change.
 
         Returns:
             None
@@ -67,11 +70,11 @@ class SubscriptionHandler:
             val: Any,
             data: asyncua.ua.uatypes.DataValue
     ) -> None:
-        """Callback method executed automatically when a node value changes.
+        """
+        Callback executed when a subscribed node value changes.
 
         Extract the NodeId, resolve its name through the mapping and
-        encapsulate the update in a dictionary. Finally, puts the object
-        in the communication queue.
+        encapsulate the update in a dictionary, then put it in the queue.
 
         Args:
             node (asyncua.common.node.Node): Node that triggered the notification.
@@ -101,9 +104,11 @@ class SubscriptionHandler:
 
 
 class AsyncOPCClient:
-    """Wrapper class for managing asyncrnonous OPC UA client connections.
-
-    Allow to both get variables values and subscribe to data changes.
+    """
+    Manages asynchronous OPC UA client connections.
+    
+    Wrapper class for asynchronous OPC UA client operations, providing
+    methods to connect, disconnect, and subscribe to data changes.
 
     Attributes:
         host (str): Network address of the OPC UA server.
@@ -111,7 +116,7 @@ class AsyncOPCClient:
         username (Optional[str]): Username for server authentication.
         password (Optional[str]): Password for server authentication.
         client (opcua_client): Internal asyncronous OPC UA client instance.
-        is_connected (bool): State tracking connection status
+        is_connected (bool): Boolean indicating connection status
     """
 
     def __init__(
@@ -121,15 +126,14 @@ class AsyncOPCClient:
         username: Optional[str] = None,
         password: Optional[str] = None
     ) -> None:
-        """Initializes the AsyncOPCClient object with the given connection parameters.
+        """
+        Initialize the AsyncOPCClient.
 
         Args:
             host (str): IP address or hostname of the OPC UA server.
             port (int): Port number (e.g., 4840).
-            username (str, optional): Username for server authentication. 
-                Defaults to None.
-            password (str, optional): Password for server authentication.
-                Defaults to None.
+            username (Optional[str]): Username for server authentication. Defaults to None.
+            password (Optional[str]): Password for server authentication. Defaults to None.
         
         Returns:
             None
@@ -145,13 +149,12 @@ class AsyncOPCClient:
 
 
     async def connect(self) -> None:
-        """Connect to the OPC UA server.
+        """
+        Connect to the OPC UA server.
 
-        Attempt to connect using the endpoint and credentials provided 
-        during initialization.
-
-        This method is idempotent: no action will be performed if a connection
-        is already active.
+        Establish connection to the server endpoint using credentials
+        provided during initialization. This method is idempotent: no
+        action is performed if already connected.
 
         Returns:
             None
@@ -159,7 +162,7 @@ class AsyncOPCClient:
         Raises:
             ConnectionError: If the connection to the server fails.
         """
-        if not self.client and not self.is_connected:  # Ensure idempotent behaviour
+        if not self.client and not self.is_connected:
             try:
                 self.client = asyncua.Client(url=f"opc.tcp://{self.host}:{self.port}")
                 if self.username and self.password:
@@ -173,22 +176,20 @@ class AsyncOPCClient:
 
 
     async def disconnect(self) -> None:
-        """Disconnect from the OPC UA server.
+        """
+        Disconnect from the OPC UA server.
 
-        This method should be called before the application instance is destroyed.
-
-        This method is idempotent: no action will be performed if no
-        connection is active.
+        Terminate the connection and clean up resources. This method is
+        idempotent: no action is performed if already disconnected.
 
         Returns:
             None
 
         Raises:
-            ConnectionError: If an error occurs while attempting to close 
-                the connection to the server.
+            ConnectionError: If an error occurs while closing the connection.
         """
 
-        if self.client and self.is_connected:  # Ensure idempotente behaviour
+        if self.client and self.is_connected:
             try:
                 await self.client.disconnect()
             except Exception as e:
@@ -199,7 +200,7 @@ class AsyncOPCClient:
 
 
     async def _get_data_type(self, node: asyncua.common.node.Node) -> str:
-        """Resolve the OPC UA data type of a node into a human-readable string.
+        """Resolve the OPC UA data type of a node to a human-readable string.
 
         Args:
             node (asyncua.common.node.Node): The node whose data type 
@@ -212,8 +213,7 @@ class AsyncOPCClient:
         
         node_type = await node.read_data_type()
 
-        # VariantType is an Enum. It is possible to access its items and values 
-        # in a map-like object by calling the method items() on __members__
+        # VariantType is an Enum. Items can be accessed via __members__
         for name, member in asyncua.ua.VariantType.__members__.items():
             if member.value == node_type.Identifier:
                 return name
@@ -226,14 +226,15 @@ class AsyncOPCClient:
             queue: asyncio.Queue,
             period: int = 500
     ) -> asyncua.common.subscription.Subscription:
-        """Set up a subscription to get data changes for a list of node IDs.
+        """
+        Subscribe to data changes for a list of node IDs.
 
         Create a local mapping of NodeIds to BrowseNames for efficient access, 
         and initialize an OPC UA subscription for the specified nodes.
 
         Args:
-            node_ids (list[str]): List of Node IDs (as strings) to subscribe to.
-            queue (asyncio.Queue): Asyncronous queue used to store and share data.
+            node_ids (list[str]): List of Node ID strings to subscribe to.
+            queue (asyncio.Queue): Asynchronous queue for storing data changes.
             period (int): Publishing interval in milliseconds. Defaults to 500.
 
         Returns:

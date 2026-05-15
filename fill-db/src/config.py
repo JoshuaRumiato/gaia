@@ -1,4 +1,10 @@
-"""Configuration module for database connection and script parameters."""
+"""Configuration module for MES database population.
+
+Provides environment-dependent constants and configuration parameters
+for the database population process, including database connection details,
+machine configurations, article definitions, and order/progress generation
+parameters.
+"""
 
 import os
 from datetime import datetime
