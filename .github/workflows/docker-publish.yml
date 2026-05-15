@@ -1,0 +1,58 @@
+name: Build and Push Microservices
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'servizio-a/**'
+      - 'servizio-b/**'
+      - '.github/workflows/docker-publish.yml'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service_name: servizio-a
+            context: ./servizio-a
+          - service_name: servizio-b
+            context: ./servizio-b
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service_name }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
