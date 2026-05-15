@@ -7,7 +7,6 @@ endpoint and integrates with Python's standard logging module.
 """
 
 import logging
-import asyncio
 from typing import Literal, Optional
 
 from opentelemetry.sdk.resources import Resource

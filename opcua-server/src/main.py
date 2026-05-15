@@ -90,7 +90,7 @@ async def main() -> None:
         Exception: Errors are caught and logged during shutdown.
     """
 
-    machine_id = os.getenv("MACHINE_ID")
+    machine_id = int(os.getenv("MACHINE_ID"))
     server_id = f"SRV-{machine_id}"
 
     # Setup telemetry

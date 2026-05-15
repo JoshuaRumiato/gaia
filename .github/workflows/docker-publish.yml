@@ -4,8 +4,8 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'servizio-a/**'
-      - 'servizio-b/**'
+      - 'gateway/**'
+      - 'opcua-server/**'
       - '.github/workflows/docker-publish.yml'
 
 env:
@@ -22,10 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - service_name: servizio-a
-            context: ./servizio-a
-          - service_name: servizio-b
-            context: ./servizio-b
+          - service_name: gateway
+            context: ./gateway
+          - service_name: opcua-server
+            context: ./opcua-server
 
     steps:
       - name: Checkout repository
