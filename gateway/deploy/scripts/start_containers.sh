@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configure paths
-IMAGE_NAME="gateway:latest"
+IMAGE_NAME="ghcr.io/joshuarumiato/gateway:latest"
 ENV_DIR="../envs"
 LOG_FILE="../logs/report.log"
 LOG_DIR=$(dirname $LOG_FILE)
@@ -30,8 +30,8 @@ if [ ! -d "$ENV_DIR" ]; then
 fi
 
 # Pull the image from the registry
-# log_message "Pulling image..."
-# docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
+log_message "Pulling image..."
+docker pull $IMAGE_NAME >> $LOG_FILE 2>&1
 
 # Start containers
 for env_file in "$ENV_DIR"/*.env; do
