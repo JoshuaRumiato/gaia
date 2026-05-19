@@ -24,7 +24,7 @@ telemetry: Optional[MESAPIServerTelemetry] = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Manage application startup and shutdown lifecycle.
     

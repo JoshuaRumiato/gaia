@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Configure paths
-IMAGE_NAME="opcua-server:latest"
 ENV_DIR="../envs"
 LOG_FILE="../logs/report.log"
 LOG_DIR=$(dirname $LOG_FILE)

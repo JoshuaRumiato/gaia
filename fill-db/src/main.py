@@ -286,23 +286,6 @@ def phase_5_calculate_dates(db: DatabaseConnection) -> None:
     print(f"✓ Updated {len(update_data)} orders with start_date and end_date")
 
 
-def is_database_already_populated(db: DatabaseConnection) -> bool:
-    """Check if the database is already populated.
-    
-    Verify if articles exist in the database to determine if the
-    database has been previously populated.
-    
-    Args:
-        db (DatabaseConnection): Database connection instance.
-    
-    Returns:
-        True if articles table contains data, False otherwise.
-    """
-    db.execute("SELECT COUNT(*) FROM articles;")
-    count = db.cursor.fetchone()[0]
-    return count > 0
-
-
 def main() -> None:
     """
     Execute the MES database population process.
@@ -325,12 +308,6 @@ def main() -> None:
     db = DatabaseConnection()
     try:
         db.connect()
-        
-        # Check idempotency: skip if database is already populated
-        if is_database_already_populated(db):
-            print("\n✓ Database already populated, skipping fill-db")
-            print("=" * 60)
-            return
         
         create_schema(db)
         

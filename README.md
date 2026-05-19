@@ -18,51 +18,34 @@ It demonstrates an end-to-end flow where a simulated OPC UA machine server gener
 
 This repository supports both a university IoT exam paper and a bachelor's thesis project.
 
-## Tech stack
 
-- Python 3.11
-- FastAPI + Uvicorn
-- PostgreSQL + TimescaleDB
-- EMQX MQTT broker
-- asyncua, aiomqtt, aiohttp
-- OpenTelemetry / SigNoz for observability
-- Docker Compose for local deployment
+## Project structure
 
-## Getting started
-
-### Prerequisites
-
-- Docker and Docker Compose
-- External Docker network: `gaia-global-network`
-- Optional: SigNoz observability stack for OTLP logging
-
-### Setup
-
-1. Create the external Docker network:
-   ```bash
-   docker network create gaia-global-network
-   ```
-
-2. Start the infrastructure stack from the repository root:
-   ```bash
-   docker compose up -d
-   ```
-
-3. Populate the MES database on first setup:
-   ```bash
-   docker compose --profile init up --build
-   ```
-
-4. Start the gateway and OPC UA containers using the deployment scripts if available:
-   - `gateway/deploy/scripts/start_containers.sh`
-   - `opcua-server/deploy/scripts/start_containers.sh`
-
-### Service endpoints
-
-- MES API health: `http://localhost:8000/health`
-- MES API active order lookup: `http://localhost:8000/active-order-id?machine=<machine_id>`
-- EMQX dashboard: `http://localhost:18083`
-- Grafana dashboard: `http://localhost:3000`
+```text
+.
+├── fill-db/              # Database seeding tool for populating synthetic manufacturing data
+│   └── src/              
+├── gateway/              # OPC UA-to-MQTT Gateway service
+│   ├── deploy/           # Deployment configurations specific to the gateway
+│   │   ├── envs/         # Environment variables and configuration files (.env) for gateway containers
+│   │   ├── logs/         # Local scripts log storage
+│   │   └── scripts/      # Shell scripts for managing (start/stop) gateway containers
+│   └── src/              
+├── mesapi-server/        # Manufacturing Execution System (MES) REST API
+│   └── src/              
+├── opcua-server/         # Industrial machine simulator
+│   ├── deploy/           # Deployment configurations specific to the simulation server
+│   │   ├── envs/         # Environment variables and configuration files (.env) for OPC UA server containers
+│   │   ├── logs/         # Local scripts log storage
+│   │   └── scripts/      # Shell scripts for managing (start/stop) OPC UA server containers
+│   └── src/              
+├── resources/            # Academic and other documentation assets
+│   └── report/           
+│       └── img/          
+└── signoz/               # Observability stack configuration
+    ├── common/
+    └── docker/               
+```
 
 ## Architecture
 
@@ -113,18 +96,152 @@ This repository supports both a university IoT exam paper and a bachelor's thesi
 - `gaia-global-network`
   - External Docker network required for service communication across container boundaries.
 
+
+## Getting started
+
+### Prerequisites
+
+Ensure the following commands run correctly: `git`, `docker`, `docker compose`, `python`/`python3`, `pip`
+
+### First-time setup
+
+1. Clone the repositoty:
+```bash
+  git clone https://github.com/lastxxix/social-computing.git
+  cd social-computing
+```
+
+2. Create the external Docker network required by the gateway and OPC UA services:
+```bash
+  docker network create gaia-global-network
+```
+
+3. Start the SigNoz stack for observability (optional but reccomended)
+```bash
+  docker compose -f signoz/docker/docker-compose.yaml up -d
+```
+
+4. Configure environment variables for `fill-db` and `mesapi-server`
+```bash
+  cp fill-db/.env.example fill-db/.env
+  # Now edit the .env file with the required variables
+```
+```bash
+  cp mesapi-server/.env.example mesapi-server/.env
+  # Now edit the .env file with the required variables
+```
+
+5. Start the core infrastructure services:
+```bash
+  docker compose up -d
+```
+
+6. Populate the MES/TimescaleDB database:
+```bash
+  docker compose --profile init up --build
+```
+
+7. Configure environment variables for OPC UA servers and gateways:
+    - each `.env` file in the `opcua-server/deploy/envs/` folder will represent a single machine exposing an OPC UA server
+    - each `.env` file in the `gateway/deploy/envs/` folder will represent a single gateway interfacing with a specific server
+
+```bash
+  cp opcua-server/deploy/envs/srv-XYZ.env.example opcua-server/deploy/envs/srv-XYZ.env
+  # Now edit the .env file with the required variables
+  # Add as many .env files (with different names) as the machines you want to expose statuses
+```
+```bash
+  cp gateway/deploy/envs/gw-XYZ.env.example gateway/deploy/envs/gw-XYZ.env
+  # Now edit the .env file with the required variables
+  # Add as many .env files (with different names) as the machines you want to monitor
+```
+
+8. Start the OPC UA server instances for configured machines:
+```bash
+  ./opcua-server/deploy/scripts/start_containers.sh
+```
+
+9. Start the gateway instances for configured machines:
+```bash
+  ./gateway/deploy/scripts/start_containers.sh
+```
+
+
+### Normal startup
+
+When the environment has already been initialized, use the following commands from the repository root:
+
+1. Start the SigNoz stack for observability (optional but reccomended)
+```bash
+  docker compose -f signoz/docker/docker-compose.yaml up -d
+```
+
+2. Start the core infrastructure services:
+```bash
+  docker compose up -d
+```
+
+3. Start the OPC UA server containers:
+```bash
+  ./opcua-server/deploy/scripts/start_containers.sh
+```
+
+4. Start the gateway containers:
+```bash
+  ./gateway/deploy/scripts/start_containers.sh
+```
+
+
+### Partial shutdown
+
+To stop and remove all field-node and edge containers:
+
+1. Stop all gateway containers:
+```bash
+  ./gateway/deploy/scripts/stop_containers.sh
+```
+
+2. Stop all OPC UA server containers:
+```bash
+  ./opcua-server/deploy/scripts/stop_containers.sh
+```
+
+### Full shutdown (quick)
+
+```bash
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+```
+
+### Full shutdown (controlled)
+
+1. Stop all field-node and edge containers:
+```bash
+  ./gateway/deploy/scripts/stop_containers.sh
+  ./opcua-server/deploy/scripts/stop_containers.sh
+```
+
+2. Stop the core infrastructure stack:
+
+```bash
+docker compose down
+```
+
+3. If you also started the optional SigNoz stack, stop it with:
+```bash
+docker compose -f signoz/docker/docker-compose.yaml down
+```
+
+### Service endpoints
+
+| Service | Endpoint | Default Credentials |
+| :--- | :--- | :--- |
+| **MES API Health** | `http://localhost:8000/health` | _None_ |
+| **MES API Order Lookup** | `http://localhost:8000/active-order-id?machine=<machine_id>` | _None_ |
+| **EMQX Dashboard** | `http://localhost:18083` | `admin` / `public` *(or your env config)* |
+| **Grafana Dashboard** | `http://localhost:3000` | `admin` / `admin` |
+
+
 ## Resources
 
-- Code folders:
-  - `opcua-server/src` — OPC UA simulation service
-  - `gateway/src` — OPC UA-to-MQTT gateway and MES integration
-  - `mesapi-server/src` — MES API and database access
-  - `fill-db/src` — database seeding and synthetic data generation
-
-- Deployment assets:
-  - `docker-compose.yaml` — main infrastructure stack
-  - `signoz/docker/docker-compose.yaml` — optional SigNoz observability stack
-
-- Helper scripts:
-  - `gateway/deploy/scripts` — gateway container management scripts
-  - `opcua-server/deploy/scripts` — OPC UA server container scripts
+See `resources/` for academic documentation and other useful material.
