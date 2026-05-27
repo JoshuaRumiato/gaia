@@ -165,6 +165,9 @@ class AsyncMQTTPublisher:
 
         try:
             payload = json.dumps(msg)  # Serialize dictionary to JSON string
+            if msg["variable"] == "Data":
+                print(payload)
+                
             await self.client.publish(
                 self.topic, 
                 payload=payload,
