@@ -164,7 +164,7 @@ async def main() -> None:
         "variable": "Data",
         "type": "Boolean",
         "value": 1,
-        "order_id": None
+        "order_id": -1
     }
 
     mqtt_data_false = {
@@ -173,7 +173,7 @@ async def main() -> None:
         "variable": "Data",
         "type": "Boolean",
         "value": 0,
-        "order_id": None
+        "order_id": -1
     }
 
     device_telemetry = GatewayTelemetry(
