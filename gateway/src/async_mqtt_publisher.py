@@ -29,6 +29,7 @@ class AsyncMQTTPublisher:
         password: Password for broker authentication.
         use_tls: Whether to use Transport Layer Security (TLS).
         transport: Transport protocol to use (tcp, websockets, or unix).
+        will_payload: Optional dictionary for the MQTT Last Will message.
         client: Internal asynchronous MQTT client instance.
         is_connected: Boolean indicating connection status.
     """
@@ -42,7 +43,8 @@ class AsyncMQTTPublisher:
             username: Optional[str] = None,
             password: Optional[str] = None,
             use_tls: bool = False,
-            transport: Literal["tcp", "websockets", "unix"] = "tcp"
+            transport: Literal["tcp", "websockets", "unix"] = "tcp",
+            will_payload: Optional[dict] = None
     ) -> None:
         """
         Initialize the AsyncMQTTPublisher.
@@ -56,7 +58,7 @@ class AsyncMQTTPublisher:
             password (Optional[str]): Password for broker authentication. Defaults to None.
             use_tls (bool): If True, enables TLS encryption. Defaults to False.
             transport (Literal["tcp", "websockets", "unix"]): Transport protocol to use. Defaults to 'tcp'.
-
+            will_payload (Optional[dict]): Dictionary for the will message. Defaults to None.
         Returns:
             None
 
@@ -76,6 +78,7 @@ class AsyncMQTTPublisher:
         self.password = password
         self.use_tls = use_tls
         self.transport = transport
+        self.will_payload = will_payload
         self.client = None
         self.is_connected = False
 
@@ -91,6 +94,7 @@ class AsyncMQTTPublisher:
             None
 
         Raises:
+            TypeError: If the will_payload is not a dictionary when provided.
             ConnectionError: If the connection to the broker fails.
         """
 
@@ -100,6 +104,18 @@ class AsyncMQTTPublisher:
             if self.use_tls:
                 tls_params = ssl.create_default_context()
                 tls_params.verify_mode = ssl.CERT_REQUIRED
+
+            if self.will_payload is not None and not isinstance(self.will_payload, dict):
+                raise TypeError("Will payload must be a dictionary.")
+
+            mqtt_will = None
+            if self.will_payload is not None:
+                mqtt_will = aiomqtt.Will(
+                    topic=self.topic,
+                    payload=json.dumps(self.will_payload),
+                    qos=1,
+                    retain=False
+                )
             
             # Initialize the aiomqtt.Client instance
             self.client = aiomqtt.Client(
@@ -108,6 +124,7 @@ class AsyncMQTTPublisher:
                 username=self.username,
                 password=self.password,
                 identifier=self.client_id,
+                will=mqtt_will,
                 tls_context=tls_params,
                 transport=self.transport,
                 websocket_path="/mqtt" if self.transport == "websockets" else None
@@ -167,6 +184,9 @@ class AsyncMQTTPublisher:
 
         Returns:
             None
+
+        Raises:
+            RuntimeError: If an error occurs during disconnection.
         """
         if self.client:
             try:

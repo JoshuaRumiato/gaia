@@ -107,8 +107,8 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
 
 1. Clone the repositoty:
 ```bash
-  git clone https://github.com/lastxxix/social-computing.git
-  cd social-computing
+  git clone https://github.com/JoshuaRumiato/gaia.git
+  cd gaia
 ```
 
 2. Create the external Docker network required by the gateway and OPC UA services:
@@ -158,12 +158,14 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
 
 8. Start the OPC UA server instances for configured machines:
 ```bash
-  ./opcua-server/deploy/scripts/start_containers.sh
+  cd ./opcua-server/deploy/scripts/
+  ./start_containers.sh
 ```
 
 9. Start the gateway instances for configured machines:
 ```bash
-  ./gateway/deploy/scripts/start_containers.sh
+  cd ../../../gateway/deploy/scripts/
+  ./start_containers.sh
 ```
 
 
@@ -183,12 +185,14 @@ When the environment has already been initialized, use the following commands fr
 
 3. Start the OPC UA server containers:
 ```bash
-  ./opcua-server/deploy/scripts/start_containers.sh
+  cd ./opcua-server/deploy/scripts/
+  ./start_containers.sh
 ```
 
 4. Start the gateway containers:
 ```bash
-  ./gateway/deploy/scripts/start_containers.sh
+  cd ../../../gateway/deploy/scripts/
+  ./start_containers.sh
 ```
 
 
@@ -196,14 +200,16 @@ When the environment has already been initialized, use the following commands fr
 
 To stop and remove all field-node and edge containers:
 
-1. Stop all gateway containers:
+1. Stop all gateway containers (from the root folder of the repository):
 ```bash
-  ./gateway/deploy/scripts/stop_containers.sh
+  cd ./gateway/deploy/scripts/
+  ./stop_containers.sh
 ```
 
 2. Stop all OPC UA server containers:
 ```bash
-  ./opcua-server/deploy/scripts/stop_containers.sh
+  cd ../../../opcua-server/deploy/scripts/
+  ./stop_containers.sh
 ```
 
 ### Full shutdown (quick)
@@ -215,10 +221,14 @@ docker rm $(docker ps -aq)
 
 ### Full shutdown (controlled)
 
-1. Stop all field-node and edge containers:
+1. Stop all field-node and edge containers (from the root node of the repository):
 ```bash
-  ./gateway/deploy/scripts/stop_containers.sh
-  ./opcua-server/deploy/scripts/stop_containers.sh
+  cd ./gateway/deploy/scripts/
+  ./stop_containers.sh
+```
+```bash
+  cd ../../../opcua-server/deploy/scripts/
+  ./stop_containers.sh
 ```
 
 2. Stop the core infrastructure stack:
@@ -229,7 +239,7 @@ docker compose down
 
 3. If you also started the optional SigNoz stack, stop it with:
 ```bash
-docker compose -f signoz/docker/docker-compose.yaml down
+docker compose -f ../../../signoz/docker/docker-compose.yaml down
 ```
 
 ### Service endpoints

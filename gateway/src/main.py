@@ -9,6 +9,7 @@ signals for a graceful shutdown and manages telemetry and MES API integration.
 
 import os
 import sys
+import time
 import signal
 import asyncio
 import logging
@@ -30,9 +31,10 @@ logger = logging.getLogger("gateway-logger")
 
 async def publisher_worker(
         mqtt_publisher: AsyncMQTTPublisher,
+        mqtt_birth_message: dict[str, Any],
+        queue: asyncio.Queue,
         mesapi_client: AsyncMesAPIClient, 
         machine_id: int,
-        queue: asyncio.Queue,
         extra_data: dict[str, Any] | None = None,
         max_concurrent: int = 50
 ) -> None:
@@ -46,6 +48,7 @@ async def publisher_worker(
 
     Args:
         mqtt_publisher: Client used to publish messages.
+        mqtt_birth_message: Message to publish upon successful connection.
         mesapi_client: Client used to fetch production order information.
         machine_id: Identifier of the production line.
         queue: Asynchronous queue containing messages to process.
@@ -100,6 +103,11 @@ async def publisher_worker(
 
             logger.info(f"MQTT | Client connected to {mqtt_publisher.broker}.")
 
+            try:
+                await mqtt_publisher.publish(mqtt_birth_message, qos=1)
+            except Exception as e:
+                pass
+
             while True:  # Internal loop: manage message publishing
                 data = await queue.get()  # Retrieve an item from the queue
                 asyncio.create_task(process_message(data))
@@ -150,6 +158,24 @@ async def main() -> None:
     client_id = f"GW-{machine_id}"
     data_queue = asyncio.Queue(maxsize = 1000)
 
+    mqtt_data_true = {
+        "timestamp": None,
+        "machine_id": machine_id,
+        "variable": "Data",
+        "type": "Bool",
+        "value": 1,
+        "order_id": None
+    }
+
+    mqtt_data_false = {
+        "timestamp": None,
+        "machine_id": machine_id,
+        "variable": "Data",
+        "type": "Bool",
+        "value": 0,
+        "order_id": None
+    }
+
     device_telemetry = GatewayTelemetry(
         endpoint_host = os.getenv("OTEL_HOST"),
         endpoint_port = int(os.getenv("OTEL_PORT")),
@@ -177,7 +203,8 @@ async def main() -> None:
         username = os.getenv("MQTT_USERNAME"),
         password = os.getenv("MQTT_PASSWORD"),
         use_tls = os.getenv("MQTT_USE_TLS") == "true",
-        transport = os.getenv("MQTT_TRANSPORT")
+        transport = os.getenv("MQTT_TRANSPORT"),
+        will_payload = mqtt_data_false
     )
 
     logger.info("MQTT | Client started.")
@@ -188,9 +215,10 @@ async def main() -> None:
 
         # Create a background task for the publishing process
         publisher_task = asyncio.create_task(publisher_worker(mqtt_publisher,
+                                                              mqtt_data_true,
+                                                              data_queue,
                                                               mesapi_client, 
                                                               machine_id,
-                                                              data_queue,
                                                               {"machine_id" : machine_id}))
 
         while True:
@@ -217,25 +245,43 @@ async def main() -> None:
                 await asyncio.sleep(3)
 
             except (asyncio.CancelledError, KeyboardInterrupt) as e:
-                logger.info("Shutdown invoked.")
-                await opc_client.disconnect()
                 break
             except Exception as e:
                 logger.error(f'OPC UA | {e}. New connection attempt in 3s...')
-                
                 try:
                     await opc_client.disconnect()
                 except:
                     pass
                 await asyncio.sleep(3)
 
+        # Shutdown procedure
+
         # Note: clearing the queue is not necessary for this software bridge
         # between IoT protocols on edge devices. It is not required to
         # guarantee the delivery of every single message
 
-        device_telemetry.shutdown()
+        
+        try:
+            await opc_client.disconnect()
+            logger.info("OPC UA | Client disconnected.")
+        except Exception as e:
+            logger.warning(f"OPC UA | {e}. Client forced to disconnect.")
+
+        try:
+            await mqtt_publisher.publish(mqtt_data_false)
+            logger.info("MQTT | Published last will message before disconnecting.")
+        except Exception as e:
+            logger.error(f"MQTT | Error occurred while publishing last will message: {e}")
+
         publisher_task.cancel()
-        await mqtt_publisher.disconnect()
+
+        try:
+            await mqtt_publisher.disconnect()
+            logger.info("MQTT | Client disconnected.")
+        except Exception as e:
+            logger.warning(f"MQTT | {e}. Client forced to disconnect.")
+
+        device_telemetry.shutdown()
 
 
 if __name__ == "__main__":
