@@ -159,7 +159,7 @@ async def main() -> None:
     data_queue = asyncio.Queue(maxsize = 1000)
 
     mqtt_data_true = {
-        "timestamp": 0,
+        "timestamp": 0.0,
         "machine_id": machine_id,
         "variable": "Data",
         "type": "Boolean",
@@ -168,7 +168,7 @@ async def main() -> None:
     }
 
     mqtt_data_false = {
-        "timestamp": 0,
+        "timestamp": 0.0,
         "machine_id": machine_id,
         "variable": "Data",
         "type": "Boolean",
