@@ -104,7 +104,7 @@ async def publisher_worker(
             logger.info(f"MQTT | Client connected to {mqtt_publisher.broker}.")
 
             try:
-                await mqtt_publisher.publish(mqtt_birth_message, qos=1)
+                await mqtt_publisher.publish(mqtt_birth_message, qos=2)
             except Exception as e:
                 pass
 
@@ -161,19 +161,19 @@ async def main() -> None:
     mqtt_data_true = {
         "timestamp": 0.0,
         "machine_id": machine_id,
-        "variable": "Data",
+        "variable": "DataValid",
         "type": "Boolean",
         "value": 1,
-        "order_id": -1
+        "order_id": 0
     }
 
     mqtt_data_false = {
         "timestamp": 0.0,
         "machine_id": machine_id,
-        "variable": "Data",
+        "variable": "DataValid",
         "type": "Boolean",
         "value": 0,
-        "order_id": -1
+        "order_id": 0
     }
 
     device_telemetry = GatewayTelemetry(
