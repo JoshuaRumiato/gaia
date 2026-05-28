@@ -82,10 +82,12 @@ class AsyncMesAPIClient:
             machine (str): The identifier of the production machine.
 
         Returns:
-            Optional[int]: The current work order ID if found, None otherwise.
+            Optional[int]: The current work order ID if found. Returns None if
+            no active order exists for the machine, or if the API response
+            does not contain the 'active_order_id' field.
             
         Raises:
-            RuntimeError: If the session is not initialized or the request fails.
+            RuntimeError: If the session is not initialized or the HTTP request fails.
         """
 
         if not self.session:

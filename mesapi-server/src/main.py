@@ -97,7 +97,8 @@ def health_check() -> dict[str, str]:
     Verify the operational status of the API server.
 
     Returns:
-        dict[str, str]: Dictionary containing the status and confirmation message 
+        dict[str, str]: Dictionary with 'status' key set to 'ok' and a 'message'
+        field containing a confirmation that the MES Simulation API is running.
     """
     logger.info("GET /health called.")
     return {"status": "ok", "message": "MES Simulation API is running."}

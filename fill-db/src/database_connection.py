@@ -124,13 +124,13 @@ class DatabaseConnection:
 
     def commit(self) -> None:
         """
-        Commit the current transaction.
+        Commit the current transaction to the database.
         
         Returns:
             None
             
         Raises:
-            Exception: If commit fails.
+            Exception: If the commit operation fails.
         """
         try:
             self.conn.commit()

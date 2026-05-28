@@ -116,7 +116,16 @@ async def main() -> None:
     logger.info("OPC UA server started and awaiting client connections.")
 
     def handle_shutdown_signal() -> None:
-        """Handle shutdown signal."""
+        """
+        Cancel the OPC UA server task when a shutdown signal is received.
+        
+        This handler manages graceful shutdown of the OPC UA server in response
+        to system signals (SIGINT, SIGTERM), ensuring proper cleanup of the server
+        task and associated resources.
+        
+        Returns:
+            None
+        """
         logger.info("OPC UA server stopped.")
         server_task.cancel()
 

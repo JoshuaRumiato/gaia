@@ -9,7 +9,6 @@
 \usepackage{amsmath}
 \usepackage{relsize}
 \usepackage{amsfonts}
-\usepackage{array}
 \usepackage{subcaption}
 \usepackage{graphicx}
 \usepackage{listings}
@@ -26,7 +25,7 @@
         \includegraphics[width=0.35\textwidth]{img/uniud-logo.pdf} \\[2cm]
         
         {\Large \textbf{Progetto di Internet of Things}} \\[2cm]
-        {\Large \textsc{Realizzazione di un sistema per la raccolta dati e il monitoraggio operativo di macchinari industriali}} \\[3cm]
+        {\Large \textsc{Simulazione di un sistema per la raccolta dati e il monitoraggio operativo di macchinari industriali}} \\[3cm]
 
         \large 168062 - Rumiato Joshua \\
         \large rumiato.joshua@spes.uniud.it
@@ -44,21 +43,19 @@
 
     \section{Introduzione}
     
-    La presente relazione illustra una replica di parte del lavoro svolto durante il periodo di tirocinio curricolare presso una importante azienda manifatturiera del territorio.
-    Il documento descrive in modo organico le fasi del lavoro che vanno dalla definizione dei requisiti fino alla pianificazione della strategia di rilascio, includendo la progettazione architetturale e lo sviluppo delle sue componenti.
+    La presente relazione rielabora ed evolve parte del lavoro svolto durante il periodo di tirocinio curricolare presso una importante azienda manifatturiera del territorio.
+    Il documento descrive le fasi del lavoro che vanno dalla definizione dei requisiti fino alla pianificazione della strategia di rilascio, ponendo l'accento sulla fase di configurazione e di distribuzione dei servizi necessari al funzionamento dell'architettura.
     
     \subsection{Obiettivo}
     
-    L'obiettivo del progetto è la messa in opera di un'infrastruttura a basso costo, resiliente e scalabile, capace di standardizzare l'acquisizione dati in fabbrica. Nello specifico, il sistema permette di raccogliere, tramite lo standard industriale \textsc{opc ua}, i dati di operatività provenienti da macchinari produttivi eterogenei e di renderli fruibili alle funzioni aziendali interessate (quali la manutenzione, la produzione e il controllo qualità) attraverso moderni strumenti di visualizzazione e monitoraggio.
+    L'obiettivo del progetto è la messa in opera di un'infrastruttura a basso costo, resiliente e scalabile, capace di standardizzare l'acquisizione dati in fabbrica. Nello specifico, il sistema permette di raccogliere, tramite lo standard industriale \textsc{opc ua}, i dati di operatività provenienti da macchinari produttivi eterogenei e di renderli fruibili attraverso moderni strumenti di visualizzazione e monitoraggio.
     
     \subsection{Scenario applicativo}
     
-    Quanto descritto si inserisce all'interno di un panorama industriale in cui, pur essendo stata definita un’interfaccia standard basata su \textsc{opc ua} per garantire l’interoperabilità tra impianti di fornitori diversi, si riscontra ancora una limitata o frammentata diffusione sul campo.
-    
-    Questa situazione rende il progetto strategico per due motivazioni principali:
+    La base del progetto, ovvero il lavoro svolto durante il tirocinio, si inserisce in un contesto industriale in cui, pur essendo stata definita un'interfaccia standard basata su \textsc{opc ua} per garantire interoperabilità tra impianti di diversi fornitori, si riscontra ancora una limitata o frammentata diffusione sul campo. Questa situazione rende il progetto strategico per due motivazioni principali:
     \begin{itemize}
-        \item promuove e accelera il processo di adozione dello standard di interoperabilità in azienda;
-        \item implementa una \textit{pipeline} che trasforma dati grezzi in informazioni facilmente fruibili.
+        \item promuove e accelera il processo di adozione dello standard di interoperabilità;
+        \item definisce un flusso che trasforma dati grezzi in informazioni facilmente fruibili.
     \end{itemize}
     
     \subsection{Requisiti e funzionalità}
@@ -68,6 +65,7 @@
         \item il sistema deve monitorare le variazioni degli stati operativi dei macchinari tramite una sottoscrizione \textsc{opc ua}, così da alleggerire il carico sulla rete aziendale;
         \item i dati letti vanno salvati su un supporto centralizzato che supporti le \textit{time-series};
         \item lo storico delle variazioni va utilizzato per la costruzione di una \textit{dashboard} che riporti sintesi di interesse sugli intervalli temporali scelti dagli utenti;
+        \item la perdita di informazioni dovuta a disservizi di rete non è considerata critica. 
     \end{itemize}
     
     In fase di sviluppo, al fine di rispondere a necessità emergenti e per garantire la massima estensibilità del sistema, sono state aggiunte ulteriori funzionalità:
@@ -78,7 +76,7 @@
     \end{itemize}
     
     \subsection{Struttura del documento}
-    Il resto della relazione affronterà dapprima il quadro teorico e le tecnologie abilitanti utilizzate, per poi illustrare le scelte progettuali compiute e i dettagli implementativi all'interno delle sezioni dedicate. Verrà poi descritta la strategia di rilascio del software sviluppato, traendo infine le conclusioni su quanto realizzato ed evidenziando i possibili sviluppi futuri per il progetto.
+    Il resto della relazione illustrerà dapprima un quadro di nozioni e tecnologie abilitanti, per poi descrivere le scelte progettuali compiute e i dettagli implementativi all'interno delle sezioni dedicate. La trattazione si conclude analizzando la strategia di rilascio del software sviluppato, discutendo in ultimo luogo le conclusioni su quanto realizzato al fine di evidenziare possibili sviluppi futuri per il progetto.
 
     \section{Quadro teorico}
 
@@ -86,18 +84,18 @@
     
     Acronimo di \textit{Open Platform Communications Unified Architecture}, è uno standard \textit{platform-independent} e \textit{open-source} progettato per la comunicazione e l'interoperabilità industriale in ottica IoT e Industria 4.0. 
     Esso organizza le informazioni in uno spazio di indirizzi strutturato ad albero (\textit{Address Space}) in cui ogni elemento (nodo) include non solo il dato grezzo, ma anche metadati, proprietà e relazioni semantiche. 
-    Lo standard supporta sia paradigmi di comunicazione tradizionali di tipo \textit{client-server} sia modelli orientati agli eventi di tipo \textit{publish-subscribe}, implementando nativamente robusti meccanismi di sicurezza quali la crittografia dei canali e l'autenticazione dei dispositivi.
+    Lo standard supporta sia paradigmi di comunicazione tradizionali di tipo \textit{client-server} sia modelli orientati agli eventi di tipo \textit{publish-subscribe}, implementando nativamente meccanismi di sicurezza quali la crittografia dei canali e l'autenticazione dei dispositivi.
     
     \subsection{MQTT}
     
     Protocollo di messaggistica leggero di tipo \textit{publish-subscribe} basato su architettura \textsc{tcp/ip}, ottimizzato per contesti con risorse hardware limitate o reti instabili (scenari IoT ed \textit{edge}). 
     L'architettura prevede al centro della comunicazione un'entità denominata \textit{broker}, incaricata di gestire lo scambio dei messaggi tra i \textit{publisher} (client che generano e inviano i dati su specifici \textit{topic} gerarchici) e i \textit{subscriber} (client che ricevono i dati registrandosi a tali canali). 
-    La robustezza e l'affidabilità della consegna sono regolate dalla Qualità del Servizio (\textit{Quality of Service}, QoS), definita su tre livelli crescenti: QoS 0 (consegna \textit{at most once}), QoS 1 (consegna \textit{at least once}) e QoS 2 (consegna \textit{exactly once}).
+    La robustezza e l'affidabilità della consegna sono regolate dalla \textit{Quality of Service} (QoS), definita su tre livelli crescenti: QoS 0 (consegna \textit{at most once}), QoS 1 (consegna \textit{at least once}) e QoS 2 (consegna \textit{exactly once}).
     
     \subsection{Database time-series}
     
-    Si tratta di sistemi di gestione di basi di dati ottimizzati per serie temporali, specializzati quindi nell'archiviazione e nell'elaborazione di sequenze di punti dati campionati nel tempo. 
-    A differenza delle basi di dati relazionali tradizionali, garantiscono elevatissime prestazioni di ingestione dati in presenza di flussi continui e risposte rapide a \textit{query} analitiche complesse. Questo è reso possibile da ottimizzazioni specifiche a livello di \textsc{i/o}, dall'indicizzazione cronologica, dal \textit{chunking} (partizionamento) dei dati e dalla definizione automatizzata di \textit{policy} di compressione e ritenzione dei dati.
+    Si tratta di sistemi di gestione di basi di dati ottimizzati per serie temporali, specializzati quindi nell'archiviazione e nell'elaborazione di sequenze di dati campionati nel tempo. 
+    A differenza delle basi di dati relazionali tradizionali, garantiscono elevate prestazioni di ingestione dati in presenza di flussi continui e risposte rapide a \textit{query} analitiche complesse. Questo è reso possibile da ottimizzazioni specifiche a livello di \textsc{i/o}, dall'indicizzazione cronologica, dal \textit{chunking} (partizionamento) dei dati e dalla definizione automatizzata di \textit{policy} di compressione e ritenzione dei dati.
     
     \subsection{Osservabilità}
     
@@ -108,12 +106,16 @@
         \item \textbf{\textit{log}}: registri testuali emessi per descrivere eventi specifici, avvisi o anomalie;
         \item \textbf{tracce}: ricostruzioni dettagliate del percorso e delle dipendenze causali di una richiesta attraverso i microservizi dell'architettura.
     \end{itemize}
-    
+
     \subsection{Portabilità e Containerizzazione}
     
-    La portabilità esprime la capacità di un'applicazione software di essere eseguita su infrastrutture hardware e ambienti operativi differenti senza richiedere modifiche sostanziali al codice sorgente. 
-    Nelle moderne architetture software, questo requisito viene soddisfatto dalle tecnologie di containerizzazione. L'isolamento e l'astrazione forniti dai \textit{container} permettono di standardizzare l'ambiente di esecuzione (comprendente codice, \textit{runtime} e librerie), garantendo la massima flessibilità operativa e facilità nel rilascio, nello spostamento ed in ogni altro intervento sui carichi di lavoro.
+    La portabilità rappresenta la capacità di un'applicazione software di essere eseguita su infrastrutture hardware e sistemi operativi differenti senza richiedere modifiche al codice sorgente. Nelle moderne architetture software, questo requisito viene soddisfatto principalmente tramite le tecnologie di containerizzazione, che permettono di racchiudere codice, librerie, e \textit{runtime} delle applicazioni in un ambiente isolato e standardizzato.
     
+    A differenza delle tradizionali macchine virtuali, i \textit{container} condividono il kernel del sistema operativo ospitante, risultando più leggeri e veloci nell'avvio. 
+    Questo consente una maggiore efficienza nell'utilizzo delle risorse e facilita operazioni di distribuzione, aggiornamento e scalabilità dei servizi.
+    
+    La containerizzazione viene inoltre ampiamente utilizzata nei processi di \textit{Continuous Integration} e \textit{Continuous Deployment} (CI/CD).
+    Attraverso i \textit{container}, infatti, è possibile eseguire automaticamente compilazione, test e distribuzione delle applicazioni riutilizzando le configurazioni e aumentando l'affidabilità delle procedure di rilascio.
 
     \section{Progettazione}
     \subsection{Architettura}
@@ -127,7 +129,7 @@
         ]{img/architecture.pdf}
     \end{center}
     
-    \paragraph{Dispositivi \textit{edge}} L'architettura proposta si basa su una flotta di dispositivi con la funzione di \textit{gateway} tra il dominio \textit{Operational Technology} (\textsc{ot}), ossia il parco macchinari, e l'infrastruttura \textsc{it}.
+    \paragraph{Dispositivi \textit{edge}} Il cuore dell'architettura proposta consiste in una flotta di dispositivi con la funzione di \textit{gateway} tra il dominio \textit{Operational Technology} (\textsc{ot}), ossia il parco macchinari, e l'infrastruttura \textsc{it}.
     
     I dispositivi, configurati per l'installazione in prossimità delle macchine (da cui la dicitura \textit{edge}), assolvono tre funzioni principali, gestite interamente in modo asincrono per ottimizzare l'uso delle risorse hardware ed evitare colli di bottiglia nell'elaborazione dei flussi di \textsc{i/o}:
     \begin{itemize}
@@ -138,29 +140,31 @@
 
     Per garantire l'affidabilità su hardware e risorse limitate, l'implementazione segue criteri di tolleranza ai guasti di rete e di ottimizzazione degli accessi alle memorie di massa. In particolare, per preservare l'integrità delle schede \textsc{sd} utilizzate su eventuali nodi Raspberry Pi, sono state adottate le seguenti misure:
     \begin{itemize}
-        \item disabilitazione della partizione \textit{swap} del sistema operativo;
-        \item esecuzione del codice in \textit{container} configurati in sola lettura;
+        \item disabilitazione della partizione \textit{swap} del sistema operativo (non attuata nella simulazione);
+        \item predisposizione del codice per l'esecuzione in \textit{container} configurati in sola lettura;
         \item inoltro dei \textit{log} verso una piattaforma di osservabilità remota.
     \end{itemize}
 
-    La containerizzazione consente inoltre di poter interfacciare ogni dispositivo con un numero arbitrario di macchinari, assicurando flessibilità nella gestione dei carichi di lavoro.
+    La containerizzazione consente inoltre di ospitare più \textit{gateway} a bordo di un singolo dispositivo fisico, assicurando flessibilità nella gestione dei carichi di lavoro.
 
     \paragraph{Broker MQTT e persistenza}
 
     La gestione della messaggistica è affidata al broker \textsc{emqx}, scelto per l'elevata scalabilità, le prestazioni e la capacità di gestire nativamente l'inoltro dei dati ricevuti verso sistemi di \textit{storage} attraverso un motore di regole integrato.
-
-    I dati inoltrati vengono memorizzati in un'istanza TimescaleDB, estensione di PostgreSQL ottimizzata per serie temporali tramite l'uso di tabelle partizionate temporalmente chiamate \textit{hypertables}. Questa scelta garantisce una copertura ottimale dei requisiti del progetto e piena interoperabilità con il linguaggio \textsc{sql} standard e gli strumenti già a disposizione nella realtà di riferimento. 
+    
+    Inoltre, grazie alla predisposizione per l'utilizzo di connessioni crittografate tramite \textsc{tls}, \textsc{emqx} può garantire un ottimo livello di sicurezza nella trasmissione dei dati.
+    
+    Una volta ricevuti dal \textit{broker} e inoltrati, i dati vengono memorizzati in un'istanza TimescaleDB, estensione di PostgreSQL ottimizzata per serie temporali tramite l'uso di tabelle partizionate temporalmente chiamate \textit{hypertables}. Questa scelta garantisce una copertura ottimale dei requisiti del progetto e piena interoperabilità con il linguaggio \textsc{sql} standard e gli strumenti già a disposizione nella realtà di riferimento. 
 
     \paragraph{Monitoraggio e osservabilità}
     Monitoraggio e visualizzazione sono affidati a Grafana, scelto per l'efficienza nella gestione di serie temporali e per l'integrazione nativa con PostgreSQL/TimescaleDB.
 
-    L'ecosistema di osservabilità, gestito mediante SigNoz, è stato centralizzato non solo per ridurre l'usura dei supporti di memoria dei dispositivi, ma anche per facilitare la diagnosi remota e la risoluzione di disservizi.
+    L'ecosistema di osservabilità è gestito mediante SigNoz, strumento \textit{open-source} completo per l'osservabilità, utilizzato per il \textit{logging} dei server \textsc{opc ua} a bordo dei macchinari, dei \textit{gateway} e del server \textsc{http} che risponde alle chiamate \textsc{api} verso il gestionale/\textsc{mes}. La centralizzazione dei \textit{log} è stata voluta non solo per ridurre l'usura dei supporti di memoria dei dispositivi, ma anche per facilitare la diagnosi remota e la risoluzione di disservizi.
     
     \subsection{Modello dei dati}
 
     \subsubsection{Formato messaggi}
 
-    Mentre la lettura degli stati macchina tramite \textsc{opc ua} è regolata dalle specifiche dello standard in questione, il \textit{payload} generato dai dispositivi \textit{edge} e pubblicato sul \textit{broker} viene strutturato in formato \textsc{json}. Tale scelta trova motivazione nella flessibilità offerta dal formato, oltre che nella facilità di \textit{parsing} automatico da parte di \textsc{emqx} e di lettura anche da esseri umani.
+    Mentre la lettura degli stati macchina tramite \textsc{opc ua} è regolata dalle specifiche dello standard in questione, il \textit{payload} generato dai dispositivi \textit{edge} e pubblicato sul \textit{broker} viene strutturato in formato \textsc{json}. Tale scelta trova motivazione nella flessibilità offerta dal formato, oltre che nella facilità di \textit{parsing} automatico da parte di \textsc{emqx}.
 
     Ogni messaggio, che notifica la variazione di uno stato macchina, include i seguenti campi:
     \begin{itemize}
@@ -174,7 +178,9 @@
 
     \subsubsection{Pubblicazione}
 
-    La struttura dei \textit{topic} \textsc{mqtt} sotto cui vengono pubblicati i dati segue una convenzione che garantisce coerenza e chiarezza: \verb|ambiente/servizio/id_macchinario|.
+    L’organizzazione dei topic \textsc{mqtt} segue un formato che assicura uniformità e facilità nella gestione. La struttura adottata è la seguente: \verb|ambiente/servizio/id_macchinario|.
+    
+    Questa convenzione minimizza il numero di livelli necessari all'interno del topic, pur consentendo di distinguere i flussi di messaggi in transito sul \textit{broker} in funzione dell'ambiente di esecuzione (\textit{test}, \textit{staging}, \textit{produzione}, \dots) e del servizio associato. In questo modo viene minimizzato il rischio di conflitti con altre applicazioni che utilizzano il medesimo \textit{broker}.
 
     \subsubsection{Persistenza}
     
@@ -185,52 +191,81 @@
     
     \section{Sviluppo e implementazione}
     \subsection{Gateway OPCUA-MQTT}
-    Il codice dei dispositivi \textit{edge} è stato sviluppato in Python, sfruttando l'ampio ecosistema di librerie asincrone per gestire richieste, chiamate \textsc{api} e invio di messaggi. 
-    
-    Per rendere il codice portabile, scalabile e agnostico rispetto ai macchinari con cui si deve interfacciare, l'intera applicazione è stata realizzata per essere eseguita all'interno di un \textit{container} Docker, leggendo i parametri di configurazione dalle variabili d'ambiente definite in un file \verb|.env|. La flessibilità operativa viene quindi implementata ricorrendo al dispiegamento di tante istanze indipendenti dell'applicazione quante sono le macchine da monitorare.
+    Il codice dei dispositivi \textit{edge} è stato sviluppato in Python e pensato per essere eseguito all'interno di un \textit{container} Docker, leggendo i parametri di configurazione da appositi file \verb|.env|. La flessibilità operativa viene quindi implementata ricorrendo al dispiegamento di tante istanze indipendenti dell'applicazione quante sono le attrezzature da monitorare.
 
-    Il sorgente del \textit{gateway} è stato organizzato in cinque file, secondo principi di modularità e separazione delle responsabilità.
+    Il sorgente del \textit{gateway} è stato organizzato in cinque file, seguendo principi di modularità e separazione delle responsabilità.
 
-    \paragraph{\texttt{async\_mesapi\_client.py}} Implementa un \textit{client} asincrono basato sulla libreria \verb|aiohttp| per l'interazione con l'\textsc{api} offerta del sistema \textsc{mes}. Il modulo gestisce il ciclo di vita della sessione \textsc{http} tramite \textit{context manager} e permette di recuperare in modo non bloccante il numero dell'ordine di produzione attivo associato al macchinario specificato.
+    \paragraph{\texttt{async\_mesapi\_client.py}} Implementa un \textit{client} asincrono basato sulla libreria \verb|aiohttp| per l'interazione con l'\textsc{api} del \textsc{mes}/gestionale per il recupero dell'ordine attivo su un macchinario. Il modulo assicura inoltre una corretta gestione del ciclo di vita della sessione \textsc{http}.
 
-    \paragraph{\texttt{async\_mqtt\_publisher.py}} Funge da \textit{wrapper} per la libreria \verb|aiomqtt|, semplificando l'interazione con il broker \textsc{mqtt}. Il modulo automatizza la serializzazione dei \textit{payload} in formato \textsc{json} e integra il supporto nativo per la sicurezza del canale tramite \textsc{ssl}/\textsc{tls}. Gestisce inoltre il ciclo di vita della connessione in modo idempotente, permettendo l'invio asincrono di messaggi su \textit{topic} specifici con diversi livelli di QoS.
+    \paragraph{\texttt{async\_mqtt\_publisher.py}} Funge da \textit{wrapper} per la libreria \verb|aiomqtt|, semplificando l'interazione con il broker \textsc{mqtt}. Il modulo automatizza la serializzazione dei \textit{payload} in formato \textsc{json} e integra il supporto nativo per la sicurezza del canale.
 
-    \paragraph{\texttt{async\_opc\_client.py}} Implementa l'interfaccia di comunicazione con il server \textsc{opc ua} tramite la libreria \verb|asyncua|. Il modulo definisce una classe per la gestione della connessione (implementata in modo idempotente, coerentemente con il \textit{publisher} \textsc{mqtt}) e un \textit{handler} dedicato alla sottoscrizione dei nodi. Quest'ultimo intercetta le variazioni dei valori in tempo reale, risolve i metadati tecnici in informazioni leggibili e arricchisce i dati con un \textit{timestamp} prima di inserirli in una coda asincrona. Tale architettura garantisce un netto disaccoppiamento tra la fase di acquisizione dal campo e la successiva trasmissione dei dati.
+    \paragraph{\texttt{async\_opc\_client.py}} Implementa l'interfaccia di comunicazione con il server \textsc{opc ua} tramite la libreria \verb|asyncua|. Il modulo mantiene la connessione con il server e sottoscrive i nodi configurati, intercettando in tempo reale le loro variazioni di valore. I dati acquisiti vengono arricchiti con metadati e \textit{timestamp} prima di essere inseriti in una coda asincrona condivisa, garantendo il disaccoppiamento tra acquisizione e trasmissione
 
-    \paragraph{\texttt{gateway\_telemetry.py}} Garantisce l'osservabilità del sistema basata sullo standard \textit{OpenTelemetry} (\textsc{otel}). Il modulo configura un client \textsc{otlp} per l'esportazione verso un collettore remoto dei \textit{log} dell'applicazone, integrandosi con il modulo \verb|logging| standard di Python per convertire automaticamente i messaggi dell'applicazione in messaggi esportabili.
+    \paragraph{\texttt{gateway\_telemetry.py}} Configura un client \textit{OpenTelemetry} per l'esportazione dei \textit{log} dell'applicazione verso un collettore remoto (SigNoz).
 
-    \paragraph{\texttt{main.py}} Costituisce l'\textit{entry point} del \textit{gateway} e ne orchestra le componenti. Il suo compito principale è inizializzare i componenti hardware e software, caricare le configurazioni dalle variabili d'ambiente e gestire il coordinamento asincrono tra i diversi client. Il cuore del modulo è strutturato su un paradigma a produttore-consumatore basato sulla libreria \verb|asyncio|:
+    \paragraph{\texttt{main.py}} Inizializza le componenti del \textit{gateway}, caricando le configurazioni dalle variabili d'ambiente, e ne gestisce il coordinamento. Il cuore del modulo è strutturato su un paradigma a produttore-consumatore basato sulla libreria \verb|asyncio|:
         \begin{itemize}
-            \item \textbf{produttore} (\textsc{opc ua}): eseguito nel ciclo principale, stabilisce e mantiene la connessione con il server \textsc{opc ua}. Una volta attivata la sottoscrizione ai nodi configurati, i dati variati vengono inviati a una coda asincrona condivisa di dimensione fissa, configurata per scartare i messaggi in caso di saturazione.
-            \item \textbf{consumatore}: un task in background che preleva i dati dalla coda, li arricchisce in tempo reale interrogando il client \textsc{mes} (per associare l'ordine di produzione corrente) e li trasmette al broker \textsc{mqtt}.
-            \item \textbf{resilienza e concorrenza}: il modulo implementa una gestione avanzata delle eccezioni e dei segnali di sistema (\textsc{sigint}, \textsc{sigterm}) per garantire uno \textit{shutdown} controllato delle risorse. La concorrenza è gestita tramite semafori per limitare il numero di pubblicazioni simultanee, evitando il sovraccarico delle risorse del dispositivo \textit{edge} in presenza di picchi di traffico dati.
+            \item \textbf{produttore} (\textsc{opc ua}): stabilisce e mantiene la connessione con il server \textsc{opc ua}. Una volta attivata la sottoscrizione ai nodi configurati, i dati variati vengono inviati a una coda asincrona condivisa di dimensione fissa, configurata per scartare i messaggi in caso di saturazione.
+            \item \textbf{consumatore}: preleva i dati dalla coda condivisa, li arricchisce in tempo reale con l'ordine di produzione corrente e li trasmette al broker \textsc{mqtt} (ai fini della trattazione, la comunicazione avviene in chiaro per evitare di gestire la complessità introdotta dai certificati).
         \end{itemize}
-
-    \begin{figure}[htbp]
-        \centering
-        \includegraphics[width=\linewidth]{img/gw-sequence-diagram.pdf}
-        \caption{Diagramma di sequenza del codice dei \textit{gateway}}
-        \label{fig:placeholder}
-    \end{figure}
+    Il modulo implementa una gestione avanzata degli errori di rete, delle eccezioni e dei segnali di sistema (\textsc{sigint}, \textsc{sigterm}) per garantire uno \textit{shutdown} controllato delle risorse. La concorrenza è limitata da un semaforo per limitare il numero di pubblicazioni simultanee, evitando il sovraccarico delle risorse del dispositivo \textit{edge} in presenza di picchi di traffico dati.
     
     \subsection{Setup ambiente di simulazione}
     
     Mentre in ambito aziendale il \textit{gateway} si inseriva in un ecosistema di servizi già configurati, ai fini della presente trattazione è stato realizzato un ambiente di simulazione completo e integrato tramite Docker, ospitato all'interno di un sistema operativo Debian su \textsc{wsl2} (\textit{Windows Subsystem for Linux}).
 
-    Per meglio fronteggiare la complessità dei servizi, l'organizzazione dell'ambiente è stata suddivisa in tre macro-componenti indipendenti. Tale struttura consente inoltre di ottenere un ottimo livello di separazione delle responsabilità:
+    Per meglio separare le responsabilità e fronteggiare la complessità dei servizi, l'organizzazione dell'ambiente è stata suddivisa in tre macro-componenti indipendenti.
     \begin{itemize}
-        \item \textbf{\textit{stack} dei servizi applicativi}: gestito mediante un file \texttt{docker-compose} contenente le configurazioni di \textsc{emqx}, TimescaleDB, il servizio di generazione di dati fittizi per la base di dati, Grafana e il server \textsc{api} per \textsc{mes}/gestionale;
-        \item \textbf{\textit{stack} di osservabilità}: orchestrato tramite un secondo file \texttt{docker-compose} preposto alla configurazione dei servizi necessari al funzionamento di SigNoz;
-        \item \textbf{nodi di campo} (server \textsc{opc ua}): gestiti in modo granulare e indipendente per emulare in modo realistico il comportamento dinamico di un parco macchine industriale.
+        \item \textbf{\textit{stack} di osservabilità}: orchestrato tramite un file \texttt{docker-compose} reperito dal \textit{repository} ufficiale GitHub, configura dei servizi necessari al funzionamento di SigNoz (come il collettore \textit{OpenTelemetry} e il database ClickHouse);
+        \item \textbf{nodi di campo} (server \textsc{opc ua}): gestiti in modo granulare e indipendente per emulare in modo realistico il comportamento dinamico di un parco macchine industriale;
+        \item \textbf{\textit{stack} dei servizi applicativi}: gestito mediante un secondo file \texttt{docker-compose} contenente le configurazioni di \textsc{emqx}, TimescaleDB, il servizio di generazione di dati fittizi per la base di dati, Grafana e il server \textsc{api} per \textsc{mes}/gestionale.
     \end{itemize}
-    La comunicazione tra le componenti è garantita dalla previa creazione di una rete Docker chiamata \verb|gaia-global-network|. Attraverso poche mirate modifiche al file di configurazione standard di SigNoz (reperibile nel \textit{repository} ufficiale GitHub), il collettore \textit{OpenTelemetry} adottato da SigNoz per la raccolta della telemetria viene esposto verso tutti i \textit{container} dell'infrastruttura predisposti per l'osservabilità.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=0.9\linewidth]{img/containers.pdf}
+        \caption{Architettura dell'ambiente simulato}
+        \label{fig:placeholder}
+    \end{figure}
+
+    La comunicazione tra le componenti è garantita dalla previa creazione di una rete Docker chiamata \verb|gaia-global-network| con \textit{driver} \verb|bridge| isolato. Questa scelta separa il traffico della simulazione da quello della rete ospite e abilita il \textsc{dns} interno di Docker, permettendo ai \textit{container} di comunicare utilizzando stringhe logiche (i nomi dei \textit{container}) come \textit{hostname}.\newline
+
+    Sulla scia di quanto osservato nel \verb|docker-compose| per l'osservabilità, anche l'orchestrazione dei servizi applicativi è stata integrata con meccanismi di \textit{healthcheck}. Attraverso l'uso di clausole \verb|depends_on| condizionate allo stato di salute del database, moduli come il generatore di popolazione iniziale, il server \textsc{http} e la dashboard Grafana rimangono in attesa dell'effettiva prontezza operativa di TimescaleDB prima di allocare le proprie risorse e avviare i rispettivi processi. La definizione di questi vincoli strutturali garantisce una corretta sequenza d'avvio, massimizza l'affidabilità e la resilienza dell'intero \textit{deployment}.
+
+    \subsubsection{Stack di osservabilità}
+    Attraverso poche mirate modifiche al file di configurazione standard di SigNoz, il collettore \textit{OpenTelemetry} deputato alla raccolta della telemetria viene esposto verso tutti i \textit{container} dell'infrastruttura predisposti per l'osservabilità:
+    \begin{itemize}
+        \item \textbf{dichiarazione delle rete globale esterna}: nella sezione radice \textit{networks} è stata inserita la rete globale, contrassegnata come \verb|external: true| per indicare l'utilizzo di una rete preesistente, non legata ai servizi definiti nel \verb|docker-compose|;
+        \begin{verbatim}
+        networks:
+          signoz-net:
+            name: signoz-net
+          gaia-global-network:
+            name: gaia-global-network
+            external: true
+        \end{verbatim}
+        \item \textbf{collegamento al modulo di ricezione}: il servizio \verb|otel-collector| viene configurato come ponte tra la rete interna di SigNoz (\verb|signoz-net|) e quella adottata per l'ascolto dei messaggi provenienti dal resto dell'ambiente.
+        \begin{verbatim}
+          otel-collector:
+            # ... various configurations ...
+            networks:
+              - gaia-global-network
+              - signoz-net
+        \end{verbatim}
+    \end{itemize}
     
     \subsubsection{Server OPC UA}
     Prevedendo la configurazione di un server a bordo di ogni macchinario da monitorare, l'implementazione del codice viene strutturata in continuità con quanto fatto con i dispositivi \textit{edge}: una \textit{codebase} unica, agnostica, da poter lanciare in un numero di istanze arbitrarie.
     Il sorgente è stato organizzato in tre file.
 
-    \paragraph{\texttt{opcua\_server.py}} Gestisce il ciclo di vita di un server \textsc{opc ua} asincrono. Espone dei dati simulando la struttura gerarchica di un \textit{namespace} con all'interno quattro tag booleani rappresentanti possibili stati macchina (\textit{InAlarm}, \textit{InBypass}, \textit{InCycle}, \textit{InWarning}).
-
+    \paragraph{\texttt{opcua\_server.py}} Gestisce il ciclo di vita di un server \textsc{opc ua} asincrono. Espone dei dati simulando la struttura gerarchica di un \textit{namespace} con all'interno quattro tag booleani rappresentanti possibili stati macchina:
+    \begin{itemize}
+        \item \textbf{\textit{InAlarm}}: segnala la presenza di una condizione di lavoro bloccante (anomalia o errore) che richiede intervento immediato;
+        \item \textbf{\textit{InBypass}}: denota l'operatività del macchinario, ma con alcune funzionalità di controllo o sicurezza disabilitate;
+        \item \textbf{\textit{InCycle}}: indica la piena operatività del macchinario;
+        \item \textbf{\textit{InWarning}}: segnala la presenza di una condizione di lavoro non bloccante, ma che richiede monitoraggio.
+    \end{itemize}
+    
     \paragraph{\texttt{opcua\_server\_telemetry.py}} Similmente a \texttt{gateway\_telemetry.py}, implementa le funzionalità di osservabilità, la configurazione di un client \textit{OpenTelemetry} e l'integrazione con il modulo \verb|logging| di Python per l'invio di \textit{log} ad un collettore remoto.
  
     \paragraph{\texttt{main.py}} Costituisce l'\textit{entry point} dell'applicazione, orchestrando l'inizializzazione della telemetria, del server e la simulazione del comportamento dinamico di un macchinario industriale. Quest'ultima funzionalità viene eseguita in \textit{background} tramite la libreria \verb|asyncio|.
@@ -254,7 +289,15 @@
         \caption{Schema delle tabelle del \textsc{mes}/gestionale}
     \end{figure}
     
-    L'intero servizio è scritto in Python e strutturato nei file che seguono.
+    Non potendo riprodurre fedelmente il funzionamento di un ambiente produttivo reale in tutta la sua complessità, l'algoritmo di popolazione si basa sui seguenti vincoli operativi e semplificazioni di modello:
+    \begin{itemize}
+        \item ogni ordine di produzione viene allocato a una singola macchina per l’intera durata della sua esecuzione;
+        \item ogni macchinario elabora un singolo ordine alla volta, escludendo elaborazioni parallele;
+        \item i macchinari sono modellati per essere costantemente occupati nella produzione, eventuali tempi morti non sono tracciati;
+        \item le quantità prodotte e scartate ad ogni dichiarazione di avanzamento sono incrementali rispetto alla precedente rilevazione;
+        \item un ordine di produzione è considerato concluso non appena la differenza tra la somma delle quantità prodotte e quella delle quantità scartate è maggiore o uguale alla quantità \textit{target} pianificata
+    \end{itemize}
+     L'intero codice del servizio è stato strutturato nei file descritti.
     
     \paragraph{\texttt{config.py}} Definisce i parametri operativi, i \textit{seed} per la riproducibilità e le specifiche di prodotti e macchine. Sono stati configurati 5 macchinari, aventi i seguenti \textsc{id}: 1123, 3311, 5563, 7742, 9987.
 
@@ -271,7 +314,7 @@
     
     \subsubsection{Interazione con la base di dati}
 
-    Il servizio di \textit{backend}  per le chiamate \textsc{http} è stato realizzato in Python attraverso il \textit{framework} \verb|fastapi| (in continuità tecnologica con il resto del progetto), predisposto per l'invio di telemtria remota e configurato per per offrire due \textit{endpoint}:
+    Il servizio di \textit{backend}  per le chiamate \textsc{http} è stato realizzato in Python  (in continuità tecnologica con il resto del progetto) attraverso il \textit{framework} \verb|fastapi|, predisposto per l'invio di telemetria remota e configurato per per offrire due \textit{endpoint}:
     \begin{itemize}
          \item \verb|/health|: \textit{endpoint} operativo utilizzato per verificare lo stato di attività del servizio;
          \item \verb|/active-order-id|: richiede il parametro \verb|machine| (\textsc{id} macchinario) e restituisce il numero d'ordine di produzione attivo all'istante della chiamata sul macchinario indicato.
@@ -279,9 +322,9 @@
 
     Il codice risulta strutturato nei file che seguono.
     
-    \paragraph{\texttt{main.py}} Espone gli \textit{endpoint}, implementa la gestione del sistema di telemetria e la logica dell'applicativo (integrazione con la base di dati tramite \verb|sqlalchemy| ed elaborazione dei risultati)
+    \paragraph{\texttt{main.py}} Espone gli \textit{endpoint}, implementa la gestione del sistema di telemetria e la logica dell'applicativo (integrazione con la base di dati tramite \verb|sqlalchemy| con relativa elaborazione dei risultati)
 
-    \paragraph{\texttt{mesapi\_server\_telemetry.py}} Invia i \textit{log} sullo stato del server e delle chiamate (con relativi risultati) ad un collettore remoto basato su \textit{OpenTelemtry} (\textsc{otel}).
+    \paragraph{\texttt{mesapi\_server\_telemetry.py}} Invia i \textit{log} sullo stato del server e delle chiamate (ed i risultati) ad un collettore remoto basato su \textit{OpenTelemtry} (\textsc{otel}).
 
     \subsection{Persistenza dei dati}
     
@@ -296,7 +339,7 @@
         \begin{tabular}{lll}
             \hline
             \textbf{Attributo} & \textbf{Tipo di dato} & \textbf{Vincoli} \\ \hline
-            \verb|timestamp|   & \verb|TIMESTAMPTZ|   & \verb|NOT NULL| \\
+            \verb|timestamp|   & \verb|TIMESTAMP|   & \verb|NOT NULL| \\
             \verb|machine_id|  & \verb|INTEGER|       & \verb|NOT NULL| \\
             \verb|variable|    & \verb|VARCHAR(20)|   & \verb|NOT NULL| \\
             \verb|type|        & \verb|VARCHAR(20)|   & \verb|NOT NULL| \\
@@ -306,13 +349,11 @@
     \end{table}
     
     
-    In riferimento alla tabella 1 si noti che:
+    In riferimento alla tabella \ref{tab:schema_database} si noti che:
     \begin{itemize}
-        \item nonostante i tag assumano valori booleani, si è preferito assegnare a value tipo integer per predisporre il sistema ad evoluzioni future (come le letture di contapezzi).
+        \item nonostante gli stati macchina vengano modellati con valori booleani, si è deciso di assegnare a \verb|value| tipo intero per predisporre il sistema ad evoluzioni future (come le letture di contapezzi).
         \item il campo \verb|order_id| è l'unico a permettere valori nulli. Ciò garantisce che ogni messaggio venga salvato anche in caso di indisponibilità momentanea del servizio \textsc{api} durante la fase di arricchimento del dato.
     \end{itemize}
-
-    
 
     In TimescaleDB, l'ottimizzazione per i carichi di lavoro \textit{time-series} avviene tramite la conversione della tabella appena creata in una \textit{hypertable}. Questa astrazione permette di suddividere automaticamente i dati in \textit{chunk} (partizioni fisiche) basati sul tempo, migliorando l'efficienza degli indici e la velocità di inserimento. La trasformazione viene eseguita invocando la funzione \verb|create_hypertable()|, specificando la tabella \textit{target} e la colonna temporale da utilizzare come chiave di partizionamento:
     
@@ -332,6 +373,7 @@
     A questo punto, per finalizzare le procedure di persistenza dei dati, sono state compiute due operazioni di configurazione su \textsc{emqx}.
 
     La prima, più immediata ma non meno importante, è stata la definizione di un meccanismo di autenticazione basato su \textit{username} e \textit{password} per autenticare i \textit{publisher} e fornire un maggior livello di protezione.
+    Pur esistendo altri metodi di autenticazione, si è scelto questo per il compromesso offerto tra semplicità e sicurezza nell'ambiente di riferimento.
     
     A seguire, sono state configurate l'intercettazione dei messaggi pubblicati sui \textit{topic} relativi al monitoraggio e la conseguente operazione di scrittura su \verb|machine_status_changes|.
     La prima avviene attraverso un'interrogazione in linguaggio \textit{\textsc{sql}-like}, che preleva le informazioni di interesse dai messaggi ricevuti sotto i \textit{topic} che presentano il prefisso specificato. L'utilizzo del carattere \textit{jolly} \verb|#| consente di effettuare una sottoscrizione multi-livello, che raccoglie indistintamente i messaggi provenienti da qualsiasi macchinario eliminando la necessità di definire una \textit{query} specifica per ognuno di questi.
@@ -347,22 +389,24 @@
     FROM "prod/gaia/#"
     \end{verbatim}
     
-    L'output della regola di intercettazione è collegato a un \textit{Data Bridge} (o \textit{Sink}) configurato per interagire con l'istanza PostgreSQL/TimescaleDB.  In questa fase, oltre alla connessione verso il database (\textit{host}, porta, nome della base di dati e credenziali di accesso), viene utilizzata una \textit{prepared statement} parametrizzata per l'inserimento dei dati. Sempre in questa fase avviene la conversione del \textit{timestamp} dal formato \textit{Unix epoch} a quello compatibile con i tipi \verb|TIMESTAMP| e \verb|TIMESTAMPTZ| di PostgreSQL.
+    L'output della regola di intercettazione è collegato a un \textit{Sink} configurato per interagire con l'istanza PostgreSQL/TimescaleDB.  In questa fase, oltre alla connessione verso il database (\textit{host}, porta, nome della base di dati e credenziali di accesso), viene utilizzata una \textit{prepared statement} parametrizzata per l'inserimento dei dati. Sempre in questa fase avviene la conversione del \textit{timestamp} dal formato \textit{Unix epoch} a quello compatibile con il tipo \verb|TIMESTAMP| di PostgreSQL.
     
     \begin{verbatim}
         INSERT INTO machine_status_changes (
-          timestamp, machine_id, 
-          variable, type, value, order_id
+          timestamp, machine_id, variable, type, value, order_id
         ) 
         VALUES (
-          TO_TIMESTAMP(${timestamp}), ${machine_id}, 
-          ${variable}, ${type}, ${value}, ${order_id}
+          (CASE 
+            WHEN ${variable} = 'DataValid' THEN clock_timestamp()
+            ELSE to_timestamp(${timestamp})
+          END),
+          ${machine_id}, ${variable}, ${type}, ${value}, ${order_id}
         )
     \end{verbatim}
 
     \subsection{Monitoraggio}
 
-    Affinché i dati raccolti risultino effettivamente fruibili dalle funzioni aziendali coinvolte nel progetto, è stata predisposta un'interfaccia di visualizzazione su Grafana, lo strumento scelto per il monitoraggio operativo e l'analisi delle serie temporali.
+    Affinché i dati raccolti risultino effettivamente fruibili, è stata predisposta un'interfaccia di visualizzazione su Grafana, lo strumento scelto per il monitoraggio operativo e l'analisi delle serie temporali.
     
     \subsubsection{Accesso alla base dati e sicurezza}
     
@@ -419,7 +463,7 @@
 
     \section{Rilascio}
     
-    Il rilascio del codice è stato ingegnerizzato seguendo metodologie di \textit{Continuous Integration} e \textit{Continuous Deployment} (CI/CD), con l'obiettivo di centralizzare il \textit{deploy} del codice sui dispositivi \textit{edge}. Ai fini della simulazione realizzata per la relazione, il medesimo approccio è stato adottato anche per il codice del server \textsc{opc ua}.
+    Il rilascio del codice è stato ingegnerizzato seguendo metodologie di \textit{Continuous Integration} e \textit{Continuous Deployment} (CI/CD), con l'obiettivo di centralizzare il \textit{deploy} del codice sui \textit{gateway}. Ai fini della simulazione realizzata per la relazione, il medesimo approccio è stato adottato anche per il codice del server \textsc{opc ua}.
     
     \subsection{Pipeline di Build e Registry Centralizzato}
     La creazione e la distribuzione delle immagini Docker sono state automatizzate tramite \textit{GitHub Actions}. Come definito nel file \verb|docker-publish.yml|, il processo si innesca ad ogni \textit{push} sul branch \verb|main| che coinvolga i sorgenti dei microservizi citati sopra.
@@ -429,7 +473,7 @@
     
     \subsection{Automazione e Dispiegamento Edge}
     
-    L'architettura permette a ogni \textit{gateway} fisico di gestire molteplici macchinari. Tale flessibilità è implementata definendo le configurazioni di ogni collegamento in file \verb|.env| separati, raggruppati in una directory specifica. Il ciclo di vita dei \textit{container} sull'unità \textit{edge} è regolato da due script Bash.
+    L'architettura permette a ogni \textit{gateway} fisico di gestire molteplici macchinari. Le configurazioni di ogni collegamento sono definite in appositi file \verb|.env|, raggruppati in una directory specifica. Il ciclo di vita dei \textit{container} su ogni unità \textit{edge} è regolato da due script Bash.
     
     \paragraph{\texttt{start\_containers.sh}} 
     Lo script è progettato per essere eseguito automaticamente al \textit{boot} del dispositivo. In un contesto di produzione, ciò si ottiene configurando un'unità di servizio \texttt{systemd}, tuttavia, ai fini della presente simulazione, l'esecuzione è stata gestita manualmente. Dopo i controlli di integrità iniziali, lo script scansiona la cartella delle configurazioni e, per ogni file \verb|.env| individuato, istanzia un \textit{container} con le seguenti specifiche:
@@ -437,18 +481,18 @@
         \item \textbf{nome}: coincide con quello del file di configurazione;
         \item \textbf{rete}: viene inserito nella rete Docker \verb|gaia-global-network| per consentire la comunicazione con il broker \textsc{emqx}, il collettore SigNoz e le \textsc{api} del gestionale;
         \item \textbf{resilienza:} applicazione della \textit{policy} \verb|--restart unless-stopped|, che garantisce il riavvio automatico del processo in caso di errore interno o riavvio del demone Docker;
-        \item \textbf{sicurezza:} esecuzione in modalità \textit{read-only} per preservare la durata dei supporti di memoria sui dispositivi \textit{edge}.
+        \item \textbf{sicurezza:} esecuzione in modalità \textit{read-only} per preservare la durata dei supporti di memoria e impedire modifiche non autorizzate al \textit{file system} dei container.
     \end{itemize}
     
     \paragraph{\texttt{stop\_containers.sh}} 
     Eseguito prima dello \textit{shutdown} del sistema, questo script garantisce uno spegnimento controllato dei servizi. Iterando sui file di configurazione attivi, lo script invia un comando per l'arresto e assicura la successiva rimozione dei \textit{container}. In questo modo si garantisce un ambiente pulito ad ogni riavvio. \newline
-    
-    Per facilitare la manutenzione e la diagnostica locale, entrambi gli \textit{script} integrano un semplice meccanismo di \textit{logging}, che sovrascrive un file di \textit{report} dedicato, registrando l'esito delle operazioni e fornendo una tracciabilità essenziale anche durante le fasi più critiche dell'operatività dei \textit{gateway}.
+
+    Per facilitare la manutenzione e la diagnostica locale, entrambi gli \textit{script} integrano un semplice meccanismo di \textit{logging}, che aggiorna un file di \textit{report} dedicato, registrando l'esito delle operazioni e fornendo una tracciabilità essenziale anche durante le fasi più critiche dell'operatività dei \textit{gateway}.
 
     \section{Conclusioni}
 
-    Il progetto descritto nella presente relazione ha dimostrato la fattibilità e l'efficacia di un'infrastruttura IoT a basso costo, resiliente e scalabile per il monitoraggio operativo in ambito industriale.
-    L'architettura proposta è riuscita a tradurre con successo telemetrie grezze provenienti dal campo (simulato in questa trattazione) in informazioni strutturate, centralizzate e immediatamente fruibili dalle funzioni aziendali, garantendo una copertura esaustiva sia dei requisiti iniziali che di quelli emersi in corso d'opera:
+    Il progetto ha dimostrato con successo la fattibilità di un’infrastruttura IoT agile, resiliente e scalabile per il monitoraggio industriale, capace di trasformare telemetrie grezze in informazioni strutturate, centralizzate e immediatamente fruibili, soddisfacendo sia i requisiti iniziali sia quelli emersi durante lo sviluppo:
+
     
     \begin{itemize}
         \item \textbf{interoperabilità e standardizzazione}: l'adozione combinata di \textsc{opc ua} e \textsc{mqtt} ha dimostrato come sia possibile astrarre la complessità di un parco macchine eterogeneo, uniformando e rendendo coerente il flusso informativo di fabbrica;
@@ -459,9 +503,10 @@
     Al netto di quanto realizzato, l'intero sistema è stato progettato con una modularità tale da consentire diversi sviluppi futuri. Tra le evoluzioni principali si configurano:
     \begin{itemize}
         \item \textbf{estensione del monitoraggio}: ampliamento del raggio d'azione della piattaforma attraverso l'integrazione di nuovi nodi di campo e metriche di impianto;
-        \item \textbf{configurazione di sistemi di \textit{alerting}}: integrazione su Grafana di regole di notifica automatica al verificarsi di anomalie o stati di allarme prolungati, abilitando una manutenzione di tipo reattivo-rapido;
-        \item \textbf{\textit{fine-tuning} e analisi delle prestazioni}: esecuzione di test di carico sulla base di dati per analizzare i tempi di risposta delle \textit{query} sotto stress, calibrando i parametri di partizionamento dei \textit{chunk} ed esaminando, se necessario, soluzioni di \textit{storage} alternative o complementari per scopi analitici;
-        \item \textbf{\textit{machine learning} per manutenzione predittiva}: applicazione di algoritmi di \textit{Machine Learning} sullo storico delle variazioni, volti a identificare \textit{trend} di deriva e prevenire i fermi macchina, anche in relazione ad articoli specifici e a volumi produttivi.
+        \item \textbf{miglioramento tolleranza ai guasti di rete}: analisi delle performance di rete con l'obiettivo di valutare l'implementazione di meccanismi più robusti per l'invio dei messaggi (come un innalzamento della QoS);
+        \item \textbf{configurazione di sistemi di \textit{alerting}}: integrazione su Grafana di regole di notifica automatica al verificarsi di anomalie o stati di allarme prolungati, abilitando una manutenzione più reattiva;
+        \item \textbf{\textit{fine-tuning} e analisi delle prestazioni}: esecuzione di test di carico sulla base di dati per calibrare i parametri di partizionamento dei \textit{chunk} ed esaminando, se necessario, soluzioni di \textit{storage} alternative o complementari per scopi analitici;
+        \item \textbf{\textit{machine learning} per manutenzione predittiva}: applicazione di algoritmi di \textit{Machine Learning} sullo storico delle variazioni, volti a identificare \textit{trend} di deriva e prevenire i fermi macchina in relazione a specifici articoli e volumi produttivi.
         \item \textbf{documentazione e ciclo di vita del software}: introduzione di strumenti per la generazione automatica e la pubblicazione della documentazione tecnica del codice, ottimizzando ulteriormente la gestione delle pipeline di CI/CD;
     \end{itemize}
     

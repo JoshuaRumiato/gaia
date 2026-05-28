@@ -230,18 +230,22 @@ class AsyncOPCClient:
         Subscribe to data changes for a list of node IDs.
 
         Create a local mapping of NodeIds to BrowseNames for efficient access, 
-        and initialize an OPC UA subscription for the specified nodes.
+        and initialize an OPC UA subscription for the specified nodes. Data change
+        notifications are processed by a handler that enriches them with metadata
+        and places them in the provided queue for asynchronous processing.
 
         Args:
             node_ids (list[str]): List of Node ID strings to subscribe to.
-            queue (asyncio.Queue): Asynchronous queue for storing data changes.
+            queue (asyncio.Queue): Asynchronous queue for storing data changes
+                enriched with metadata (timestamp, variable name, type, value).
             period (int): Publishing interval in milliseconds. Defaults to 500.
 
         Returns:
             asyncua.common.subscription.Subscription: The created subscription object.
 
         Raises:
-            RuntimeError: If called while the client is disconnected.
+            RuntimeError: If called while the client is disconnected or not connected
+                to the OPC UA server.
         """
         
         if not self.is_connected:

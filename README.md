@@ -5,9 +5,9 @@ Gateway for Advanced Industrial Analytics.
 ## Table of contents
 
 - [General info](#general-info)
-- [Tech stack](#tech-stack)
-- [Getting started](#getting-started)
+- [Project structure](#project-structure)
 - [Architecture](#architecture)
+- [Getting started](#getting-started)
 - [Resources](#resources)
 
 ## General info
@@ -254,4 +254,13 @@ docker compose -f ../../../signoz/docker/docker-compose.yaml down
 
 ## Resources
 
-See `resources/` for academic documentation and other useful material.
+The `resources/` directory contains academic and operational documentation:
+
+- `report/main.tex`
+  - Comprehensive report in Italian detailing project architecture, design decisions, implementation details, and deployment strategies.
+- `timescale.sql`
+  - TimescaleDB initialization script with hypertable definitions and retention policies.
+- `emqx.sql`
+  - EMQX configuration queries for data bridge rules and authentication setup.
+- `grafana.sql`
+  - Grafana datasource and dashboard queries.

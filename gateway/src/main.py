@@ -9,7 +9,6 @@ signals for a graceful shutdown and manages telemetry and MES API integration.
 
 import os
 import sys
-import time
 import signal
 import asyncio
 import logging
@@ -44,7 +43,9 @@ async def publisher_worker(
     Maintain an active connection to the MQTT broker, handle automatic 
     retries on connection failure, and process messages asynchronously 
     from the provided queue. Each message is enriched with extra data and
-    production order information before publishing.
+    production order information before publishing. The worker continuously
+    attempts to reconnect to the broker in case of disconnection with a 3
+    second retry delay.
 
     Args:
         mqtt_publisher: Client used to publish messages.
@@ -61,7 +62,7 @@ async def publisher_worker(
 
     Raises:
         asyncio.CancelledError: If the worker task is cancelled by the 
-            event loop.
+            event loop or during application shutdown.
     """
     extra_data = extra_data or {}  # Ensure extra_data is a dictionary even if None is passed
 
@@ -145,6 +146,15 @@ async def main() -> None:
     main_task = asyncio.current_task(loop)
     
     def handle_stop_signal():
+        """
+        Cancel the main task when a stop signal (SIGINT, SIGTERM) is received.
+        
+        This handler enables graceful shutdown of the gateway application,
+        ensuring proper cleanup of connections and resources.
+        
+        Returns:
+            None
+        """
         main_task.cancel()
     
     if sys.platform == "win32":

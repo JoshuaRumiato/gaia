@@ -90,15 +90,18 @@ class MESAPIServerTelemetry:
 
     def setup(self) -> None:
         """
-        Configure and start the OpenTelemetry logger provider and exporter.
+        Configure and initialize OpenTelemetry providers and exporters.
+
+        Initialize the OTLP log exporter, configure the logger provider with
+        batch log record processing, and integrate with Python's standard logging
+        module. Skip if already initialized (idempotent).
 
         Returns:
             None
 
         Raises:
-            Exception: If any part of the initialization fails, the error is 
-                caught and a shutdown is attempted to ensure partial
-                resources are cleaned up.
+            None: Errors during initialization are caught
+                and handled via shutdown to ensure correct resources cleanup.
         """
 
         if self.is_initialized:

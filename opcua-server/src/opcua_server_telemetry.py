@@ -87,17 +87,16 @@ class OPCServerTelemetry:
         """
         Configure and initialize OpenTelemetry providers and exporters.
 
-        Perform initialization steps:
-        - Set up LoggerProvider with OTLP gRPC exporter
-        - Configure Python logging module to route OPC UA server logs through OTel
-        - Skip if already initialized (idempotent)
+        Initialize the OTLP log exporter, configure the logger provider with
+        batch log record processing, and integrate with Python's standard logging
+        module. Skip if already initialized (idempotent).
 
         Returns:
             None
 
         Raises:
-            Exception: Errors are caught and logged; shutdown is called to
-                clean up any partially initialized resources.
+            None: Errors during initialization are caught
+                and handled via shutdown to ensure correct resources cleanup.
         """
         
         if self.is_initialized:
