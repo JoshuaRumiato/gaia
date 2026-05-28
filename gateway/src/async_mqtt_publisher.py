@@ -174,6 +174,7 @@ class AsyncMQTTPublisher:
             )
                 
         except Exception as e:
+            self.is_connected = False
             raise RuntimeError(f"Failed to publish message: {e}")
 
 

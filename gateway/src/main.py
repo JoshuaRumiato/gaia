@@ -110,6 +110,10 @@ async def publisher_worker(
                 pass
 
             while True:  # Internal loop: manage message publishing
+                # Check if connection was lost by a background task (process_message)
+                if not mqtt_publisher.is_connected:
+                    raise ConnectionError("MQTT connection was lost. Reconnecting...")
+                
                 data = await queue.get()  # Retrieve an item from the queue
                 asyncio.create_task(process_message(data))
                 queue.task_done()
