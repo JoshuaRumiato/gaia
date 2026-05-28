@@ -24,7 +24,7 @@ state_intervals AS (
         variable,
         value,
         "timestamp" as s_start,
-        LEAD("timestamp") OVER (PARTITION BY variable ORDER BY "timestamp") as s_next
+        COALESCE(LEAD("timestamp") OVER (PARTITION BY variable ORDER BY "timestamp"), $__timeTo()::timestamp) as s_next
     FROM machine_status_changes
     WHERE variable IN ('$status')
       AND machine_id = ${machine_id}
@@ -35,11 +35,11 @@ valid_state_intervals AS (
         s.variable,
         s.value,
         s.s_start,
-        COALESCE(s.s_next, $__timeTo()::timestamp) as s_next_clean,
+        s.s_next as s_next_clean,
         GREATEST(s.s_start, v.validity_start, $__timeFrom()::timestamp) as i_start,
-        LEAST(COALESCE(s.s_next, $__timeTo()::timestamp), v.validity_end, $__timeTo()::timestamp) as i_end
+        LEAST(s.s_next, v.validity_end) as i_end
     FROM state_intervals s
-    JOIN valid_windows v ON (s.s_start, COALESCE(s.s_next, $__timeTo()::timestamp)) OVERLAPS (v.validity_start, v.validity_end)
+    JOIN valid_windows v ON (s.s_start, s.s_next) OVERLAPS (v.validity_start, v.validity_end)
 ),
 -- Calculate active time for each variable
 calculations AS (
@@ -65,25 +65,22 @@ FROM calculations;
 
 -- Tab 1: State Timeline
 
--- Build validity intervals for the DataValid signal
 WITH periods AS (
     SELECT 
-        "timestamp" as validity_start,
-        COALESCE(LEAD("timestamp") OVER (ORDER BY "timestamp"), $__timeTo()::timestamp) as validity_end,
+        "timestamp" as v_start,
+        COALESCE(LEAD("timestamp") OVER (ORDER BY "timestamp"), $__timeTo()::timestamp) as v_end,
         value as is_valid
     FROM machine_status_changes
     WHERE variable = 'DataValid'
       AND machine_id = ${machine_id}
       AND "timestamp" <= $__timeTo()::timestamp
 ),
--- Keep only valid time windows overlapping the selected range
 valid_windows AS (
-    SELECT validity_start, validity_end
+    SELECT v_start, v_end
     FROM periods
     WHERE is_valid = 1 
-      AND (validity_start, validity_end) OVERLAPS ($__timeFrom()::timestamp, $__timeTo()::timestamp)
+      AND (v_start, v_end) OVERLAPS ($__timeFrom()::timestamp, $__timeTo()::timestamp)
 ),
--- Build status intervals for the selected variables
 state_intervals AS (
     SELECT 
         variable,
@@ -94,38 +91,30 @@ state_intervals AS (
     WHERE variable IN ('$status')
       AND machine_id = ${machine_id}
 ),
--- Intersect status intervals with valid data windows
-valid_state_intervals AS (
+intersected_states AS (
     SELECT 
-        s.variable,
-        s.value,
-        s.s_start,
-        COALESCE(s.s_next, $__timeTo()::timestamp) as s_next_clean,
-        GREATEST(s.s_start, v.validity_start, $__timeFrom()::timestamp) as i_start,
-        LEAST(COALESCE(s.s_next, $__timeTo()::timestamp), v.validity_end, $__timeTo()::timestamp) as i_end
+        s.value::integer as val, 
+        GREATEST(s.s_start, v.v_start, $__timeFrom()::timestamp) as time_start,
+        LEAST(COALESCE(s.s_next, $__timeTo()::timestamp), v.v_end, $__timeTo()::timestamp) as time_end
     FROM state_intervals s
-    JOIN valid_windows v ON (s.s_start, COALESCE(s.s_next, $__timeTo()::timestamp)) OVERLAPS (v.validity_start, v.validity_end)
+    JOIN valid_windows v ON (s.s_start, COALESCE(s.s_next, $__timeTo()::timestamp)) OVERLAPS (v.v_start, v.v_end)
 ),
--- Calculate active time for each variable
-calculations AS (
+invalid_breaks AS (
     SELECT 
-        variable,
-        SUM(
-            CASE WHEN i_end > i_start 
-            THEN EXTRACT(EPOCH FROM (i_end - i_start)) 
-            ELSE 0 END
-        ) as active_seconds,
-        $__timeFrom()::timestamp as range_start,
-        $__timeTo()::timestamp as range_end
-    FROM valid_state_intervals
-    WHERE value = 1
-    GROUP BY variable
+        v_end as time_start,
+        NULL::integer as val
+    FROM valid_windows
+    WHERE v_end < $__timeTo()::timestamp
 )
--- Convert active time into percentage over the selected range
-SELECT
-    variable as metric,
-    (active_seconds / NULLIF(EXTRACT(EPOCH FROM (range_end - range_start)), 0)) * 100 as percentage
-FROM calculations;
+SELECT time_start as "time", val as value 
+FROM (
+    SELECT time_start, val FROM intersected_states
+    UNION ALL
+    SELECT time_start, val FROM invalid_breaks
+) final_data
+WHERE time_start BETWEEN $__timeFrom()::timestamp AND $__timeTo()::timestamp
+ORDER BY 1;
+
 
 
 -- Tab 2: Table
