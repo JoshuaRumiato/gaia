@@ -7,6 +7,7 @@ machine state monitoring.
 
 import asyncio
 import logging
+import random
 from typing import Optional
 
 from asyncua import ua, Server
@@ -82,12 +83,12 @@ class OPCServer:
             "Device1"
         )
         
-        for tag in ["InAlarm", "InBypass", "InCycle", "InWarning"]:
+        for tag in ["InAlarm", "InBypass", "InCycle", "InWarning", "MachinePieceCounter", "LinePieceCounter"]:
             self.tags[tag] = await self.device.add_variable(
                 ua.NodeId(f"Channel1.Device1.{tag}", idx),
                 tag,
-                False,
-                ua.VariantType.Boolean
+                random.uniform(300, 500),
+                ua.VariantType.Int32
             )
             await self.tags[tag].set_writable(True)
 

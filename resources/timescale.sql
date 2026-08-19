@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS machine_status_changes (
     variable VARCHAR(20) NOT NULL,
     type VARCHAR(20) NOT NULL,
     value INTEGER NOT NULL,
-	order_id INTEGER
+	event_type CHAR(1) NOT NULL
 );
 
 -- create the hypertable
@@ -46,8 +46,6 @@ SELECT * from hypertable_detailed_size('machine_status_changes');
 
 -- set retention policy
 SELECT set_retention_policy(INTERVAL '13 month')
-
-
 
 
 -- create user and grant permissions for Grafana

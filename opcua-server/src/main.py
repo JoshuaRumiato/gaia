@@ -42,11 +42,9 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
         asyncio.CancelledError: If the simulation task is cancelled.
         Exception: If tag updates fail.
     """
-    cycle_count = 0
-    
+
     try:
         while True:
-            cycle_count += 1
             
             # InCycle with 60% probability
             if random.random() < 0.6:
@@ -74,6 +72,58 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
         pass
     except Exception as e:
         logger.error(f"Error during simulation: {e}")
+
+async def increment_counters(server: OPCServer) -> None:
+    """
+    LOGICA PER I CONTATORI (questo commento va cancellato appena la funzione sarà implementata)
+
+    - Entrambi i contatori ragionano a singoli incrementi (+1, +1, +1...)
+    - La velocità di incremento dei due contatori è la medesima (può esssere inizializzata in modo casuale tra un incremento ogni 3 e 10 secondi)
+    - I due contatori non sono sincronizzati tra loro, non è detto che incrementino in modo simultaneo e non hanno gli stessi valori iniziali
+    - Ad intervalli irregolari entrambi i contatori possono essere azzerati (30% di probabilità per quello della linea, 10% per quello della linea)
+    - Ogni tanto deve capitare che il contatore del macchinario si fermi mentre quello della linea continua ad incrementare (il caso da rilevare attraverso il whatchdog)
+    """
+
+    line_stopped = False
+    machine_stop_cycles = 0
+
+    try:
+        while True:
+
+            # Update line counter
+            current_line_counter = await server.get_tag_value("LinePieceCounter")
+            line_random = random.random()
+
+            if line_random < 0.30:  # 30% chance to reset the line counter
+                await server.set_tag_value("LinePieceCounter", 0)
+            elif line_random < 0.90:  # 60% chance to increment the line counter
+                await server.set_tag_value("LinePieceCounter", current_line_counter + 1)
+            # Altrimenti la linea resta invariata: 10%
+
+            await asyncio.sleep(random.uniform(0.5, 1.2)) # Random interval between increments
+
+            # Update machine counter
+            current_machine_counter = await server.get_tag_value("MachinePieceCounter")
+
+            if machine_stop_cycles > 0:  # Machine is currently stopped
+                machine_stop_cycles -= 1
+            else:
+                if not line_stopped:
+                    machine_random = random.random()
+
+                    if machine_random < 0.20:  # 20% chance to stop the machine counter for a few cycles
+                        machine_stop_ticks = random.randint(2, 5)
+                    elif machine_random < 0.30:  # 10% chance to reset the machine counter
+                        await server.set_tag_value("MachinePieceCounter", 0)
+                    else:  # 70% chance to increment the machine counter
+                        await server.set_tag_value("MachinePieceCounter", current_machine_counter + 1)
+
+            await asyncio.sleep(random.uniform(3, 7))  # Random interval between increments
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.error(f"Error during counter increment: {e}")
+
 
 
 async def main() -> None:
@@ -142,9 +192,9 @@ async def main() -> None:
         # Start tag simulation
         interval_seconds = 3
         simulation_task = asyncio.create_task(
-            simulate_tag_changes(opc_server, interval=interval_seconds)
+            increment_counters(opc_server)
         )
-        logger.info(f"Started tag simulation with {interval_seconds}-second intervals.")
+        logger.info(f"Started counters increment.")
         
         # Wait for simulation to complete (runs until cancelled)
         await simulation_task

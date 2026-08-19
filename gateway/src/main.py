@@ -12,13 +12,17 @@ import sys
 import signal
 import asyncio
 import logging
+import random
 from typing import Any
 
 from gateway_telemetry import GatewayTelemetry
 from async_opc_client import AsyncOPCClient
 from async_mqtt_publisher import AsyncMQTTPublisher
-from async_mesapi_client import AsyncMesAPIClient
+from counter_watchdog import CounterWatchdog
 
+# Exponential backoff parameters
+BASE_TIME = 3.0  # Base time in seconds for the initial retry delay
+MAX_TIME = BASE_TIME * 2**7  # Backoff increase stops at the eigth retry (3s * 2^7 = 384s)
 
 # Required for compatibility between aiomqtt and Python's default event loop for Windows
 if sys.platform == "win32":
@@ -32,9 +36,7 @@ async def publisher_worker(
         mqtt_publisher: AsyncMQTTPublisher,
         mqtt_birth_message: dict[str, Any],
         queue: asyncio.Queue,
-        mesapi_client: AsyncMesAPIClient, 
-        machine_id: int,
-        extra_data: dict[str, Any] | None = None,
+        watchdog: CounterWatchdog,
         max_concurrent: int = 50
 ) -> None:
     """
@@ -50,8 +52,6 @@ async def publisher_worker(
     Args:
         mqtt_publisher: Client used to publish messages.
         mqtt_birth_message: Message to publish upon successful connection.
-        mesapi_client: Client used to fetch production order information.
-        machine_id: Identifier of the production line.
         queue: Asynchronous queue containing messages to process.
         extra_data: Data to merge into every outgoing message. Defaults to None.
         max_concurrent: Maximum number of concurrent publishing tasks. 
@@ -64,67 +64,65 @@ async def publisher_worker(
         asyncio.CancelledError: If the worker task is cancelled by the 
             event loop or during application shutdown.
     """
-    extra_data = extra_data or {}  # Ensure extra_data is a dictionary even if None is passed
 
-    async def process_message(data: dict[str, Any]) -> None:
-        """
-        Merge extra information to a message and publish it.
+    semaphore = asyncio.Semaphore(max_concurrent)  # Limit the number of concurrent publishing tasks
+    mqtt_connection_attempt = 0  # Track the number of connection attempts to the MQTT broker (used for exponential backoff)
+
+    async def publish_message(data: dict[str, Any]) -> None:
+        """Publish the message via MQTT.
+
+        Handle connection resets on failure. 
 
         Args:
-            data: Raw message payload from the queue.
+            data (dict[str, Any]): Raw message payload retrieved from the queue.
 
         Returns:
             None
         """
         async with semaphore:
             try:
-                for key in extra_data:
-                    data[key] = extra_data[key]
-                
-                try:
-                    # Add order ID
-                    data["order_id"] = await mesapi_client.get_current_order_id(machine_id)
-                except Exception as e:
-                    logger.warning(f"MESAPI | {e}")
-                    data["order_id"] = None
-
                 await mqtt_publisher.publish(data)
             except Exception as e:
                 logger.error(f'MQTT | {e}')
                 try:
-                    await mqtt_publisher.disconnect()
+                    await mqtt_publisher.disconnect()  # Force the client to disconnect
                 except:
                     pass
-
-    semaphore = asyncio.Semaphore(max_concurrent)
 
     while True:  # External loop: manage connection and reconnection
         try:
             await mqtt_publisher.connect()
-
             logger.info(f"MQTT | Client connected to {mqtt_publisher.broker}.")
+            mqtt_connection_attempt = 0  # Connection successful, reset the numeber of attempts
 
             try:
                 await mqtt_publisher.publish(mqtt_birth_message, qos=2)
             except Exception as e:
-                pass
+                raise ConnectionError(f"Failed to publish birth message: {e}")
 
             while True:  # Internal loop: manage message publishing
-                # Check if connection was lost by a background task (process_message)
                 if not mqtt_publisher.is_connected:
-                    raise ConnectionError("MQTT connection was lost. Reconnecting...")
+                    raise ConnectionError("MQTT connection was lost.")
                 
                 data = await queue.get()  # Retrieve an item from the queue
-                asyncio.create_task(process_message(data))
+                anomaly_event = watchdog.process_event(data)
+                if anomaly_event:
+                    asyncio.create_task(publish_message(anomaly_event))
+                    
+                asyncio.create_task(publish_message(data))
                 queue.task_done()
 
         except Exception as e:
-            logger.error(f'MQTT | {e}. New connection attempt in 3s...')
+            mqtt_reconnection_attempt += 1
+            base_delay = min(BASE_TIME * 2**(mqtt_reconnection_attempt - 1), MAX_TIME)
+            actual_delay = random.uniform(base_delay*0.8, base_delay*1.2)  # Add jitter with range [-20%, +20%]
+
+            logger.error(f'MQTT | {e}. New connection attempt in {actual_delay:.2f}s...')
             try:
                 await mqtt_publisher.disconnect()
             except:
                 pass
-            await asyncio.sleep(3)
+            await asyncio.sleep(actual_delay)
             
 
 async def main() -> None:
@@ -178,7 +176,7 @@ async def main() -> None:
         "variable": "DataValid",
         "type": "Boolean",
         "value": 1,
-        "order_id": 0
+        "event_type": "D"  # Derived
     }
 
     mqtt_data_false = {
@@ -187,7 +185,7 @@ async def main() -> None:
         "variable": "DataValid",
         "type": "Boolean",
         "value": 0,
-        "order_id": 0
+        "event_type": "D"  # Derived
     }
 
     device_telemetry = GatewayTelemetry(
@@ -223,79 +221,82 @@ async def main() -> None:
 
     logger.info("MQTT | Client started.")
 
-    async with AsyncMesAPIClient(os.getenv("MESAPI_BASE_URL")) as mesapi_client:
+    counter_watchdog = CounterWatchdog(
+        client_id = client_id,
+        timeout_seconds = float(os.getenv("WATCHDOG_TIMEOUT_SECONDS")),
+        min_pieces = int(os.getenv("WATCHDOG_MIN_PIECES")),
+        line_counter_name = os.getenv("WATCHDOG_LINE_COUNTER_NAME"),
+        machine_counter_name = os.getenv("WATCHDOG_MACHINE_COUNTER_NAME")
+    )
 
-        logger.info("MESAPI | Client started.")
+    # Create a background task for the publishing process
+    publisher_task = asyncio.create_task(publisher_worker(mqtt_publisher,
+                                                            mqtt_data_true,
+                                                            data_queue,
+                                                            counter_watchdog))
 
-        # Create a background task for the publishing process
-        publisher_task = asyncio.create_task(publisher_worker(mqtt_publisher,
-                                                              mqtt_data_true,
-                                                              data_queue,
-                                                              mesapi_client, 
-                                                              machine_id,
-                                                              {"machine_id" : machine_id}))
+    opcua_connection_attempt = 0
 
-        while True:
+    while True:
+        try:
+            await opc_client.connect()
+            logger.info(f"OPC UA | Client connected to {opc_client.host}.")
+            opcua_connection_attempt = 0  # Connection successful, reset the number of attempts
+
+            # Get the nodes to monitor
+            monitored_items = [ s for s in os.getenv("OPCUA_MONITORED_ITEMS").split("|") if s.strip() ]
+            subscription = await opc_client.subscribe_to_variables(monitored_items, data_queue, period=500)
+            if subscription:
+                logger.info(f"OPC UA | Subscriptions activated for: {monitored_items}.")
+                
+                while True:
+                    await opc_client.client.check_connection()
+                    await asyncio.sleep(30)
+            else:    
+                raise ConnectionError(f"Unable to subscribe to data changes for {monitored_items}.")
+
+        except (asyncio.CancelledError, KeyboardInterrupt) as e:
+            break
+        except Exception as e:
+            opcua_connection_attempt += 1
+            base_delay = min(BASE_TIME * 2**(opcua_connection_attempt - 1), MAX_TIME)
+            actual_delay = random.uniform(base_delay*0.8, base_delay*1.2)  # Add jitter with range [-20%, +20%]
+
+            logger.error(f'OPC UA | {e}. New connection attempt in {actual_delay:.2f}s...')
             try:
-                await opc_client.connect()
-                logger.info(f"OPC UA | Client connected to {opc_client.host}.")
+                await opc_client.disconnect()
+            except:
+                pass
+            await asyncio.sleep(actual_delay)
 
-                # Get the nodes to monitor
-                monitored_items = [ s for s in os.getenv("OPCUA_MONITORED_ITEMS").split("|") if s.strip() ]
-                subscription = await opc_client.subscribe_to_variables(monitored_items, data_queue, period=500)
-                if subscription:
-                    logger.info(f"OPC UA | Subscriptions activated for: {monitored_items}.")
-                    
-                    while True:
-                        await opc_client.client.check_connection()
-                        await asyncio.sleep(30)
-                else:    
-                    logger.warning(f'OPC UA | Unable to subscribe to data changes for {monitored_items}. New connection attempt in 3s...')
+    # Shutdown procedure
 
-                try:
-                    await opc_client.disconnect()
-                except:
-                    pass
-                await asyncio.sleep(3)
+    # Note: clearing the queue is not necessary for this software bridge
+    # between IoT protocols on edge devices. It is not required to
+    # guarantee the delivery of every single message
 
-            except (asyncio.CancelledError, KeyboardInterrupt) as e:
-                break
-            except Exception as e:
-                logger.error(f'OPC UA | {e}. New connection attempt in 3s...')
-                try:
-                    await opc_client.disconnect()
-                except:
-                    pass
-                await asyncio.sleep(3)
+    
+    try:
+        await opc_client.disconnect()
+        logger.info("OPC UA | Client disconnected.")
+    except Exception as e:
+        logger.warning(f"OPC UA | {e}. Client forced to disconnect.")
 
-        # Shutdown procedure
+    try:
+        await mqtt_publisher.publish(mqtt_data_false)
+        logger.info("MQTT | Published last will message before disconnecting.")
+    except Exception as e:
+        logger.error(f"MQTT | Error occurred while publishing last will message: {e}")
 
-        # Note: clearing the queue is not necessary for this software bridge
-        # between IoT protocols on edge devices. It is not required to
-        # guarantee the delivery of every single message
+    publisher_task.cancel()
 
-        
-        try:
-            await opc_client.disconnect()
-            logger.info("OPC UA | Client disconnected.")
-        except Exception as e:
-            logger.warning(f"OPC UA | {e}. Client forced to disconnect.")
+    try:
+        await mqtt_publisher.disconnect()
+        logger.info("MQTT | Client disconnected.")
+    except Exception as e:
+        logger.warning(f"MQTT | {e}. Client forced to disconnect.")
 
-        try:
-            await mqtt_publisher.publish(mqtt_data_false)
-            logger.info("MQTT | Published last will message before disconnecting.")
-        except Exception as e:
-            logger.error(f"MQTT | Error occurred while publishing last will message: {e}")
-
-        publisher_task.cancel()
-
-        try:
-            await mqtt_publisher.disconnect()
-            logger.info("MQTT | Client disconnected.")
-        except Exception as e:
-            logger.warning(f"MQTT | {e}. Client forced to disconnect.")
-
-        device_telemetry.shutdown()
+    device_telemetry.shutdown()
 
 
 if __name__ == "__main__":
