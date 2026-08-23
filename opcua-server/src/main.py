@@ -73,7 +73,7 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
     except Exception as e:
         logger.error(f"Error during simulation: {e}")
 
-async def increment_counters(server: OPCServer) -> None:
+async def simulate_counters(server: OPCServer) -> None:
     """
     LOGICA PER I CONTATORI (questo commento va cancellato appena la funzione sarà implementata)
 
@@ -94,11 +94,14 @@ async def increment_counters(server: OPCServer) -> None:
             current_line_counter = await server.get_tag_value("LinePieceCounter")
             line_random = random.random()
 
-            if line_random < 0.30:  # 30% chance to reset the line counter
+            if line_random < 0.05:  # 5% chance to reset the line counter
                 await server.set_tag_value("LinePieceCounter", 0)
-            elif line_random < 0.90:  # 60% chance to increment the line counter
+                line_stopped = False
+            elif line_random < 0.85:  # 80% chance to increment the line counter
                 await server.set_tag_value("LinePieceCounter", current_line_counter + 1)
-            # Altrimenti la linea resta invariata: 10%
+                line_stopped = False
+            else: # 15% chance to do nothing (line is stopped)
+                line_stopped = True
 
             await asyncio.sleep(random.uniform(0.5, 1.2)) # Random interval between increments
 
@@ -112,17 +115,17 @@ async def increment_counters(server: OPCServer) -> None:
                     machine_random = random.random()
 
                     if machine_random < 0.20:  # 20% chance to stop the machine counter for a few cycles
-                        machine_stop_ticks = random.randint(2, 5)
-                    elif machine_random < 0.30:  # 10% chance to reset the machine counter
+                        machine_stop_cycles = random.randint(2, 5)
+                    elif machine_random < 0.25:  # 5% chance to reset the machine counter
                         await server.set_tag_value("MachinePieceCounter", 0)
-                    else:  # 70% chance to increment the machine counter
+                    else:  # 75% chance to increment the machine counter
                         await server.set_tag_value("MachinePieceCounter", current_machine_counter + 1)
 
             await asyncio.sleep(random.uniform(3, 7))  # Random interval between increments
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        logger.error(f"Error during counter increment: {e}")
+        logger.error(f"Error during counters simulation: {e}")
 
 
 
@@ -192,9 +195,9 @@ async def main() -> None:
         # Start tag simulation
         interval_seconds = 3
         simulation_task = asyncio.create_task(
-            increment_counters(opc_server)
+            simulate_counters(opc_server)
         )
-        logger.info(f"Started counters increment.")
+        logger.info(f"Started counters simulation.")
         
         # Wait for simulation to complete (runs until cancelled)
         await simulation_task

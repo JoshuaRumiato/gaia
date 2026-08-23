@@ -26,7 +26,7 @@ class SubscriptionHandler:
         queue (asyncio.Queue): Asynchronous queue used as communication buffer.
     """
 
-    def __init__(self, node_mapping: dict[str, str], queue: asyncio.Queue) -> None:
+    def __init__(self, node_mapping: dict[str, str], machine_id: int, queue: asyncio.Queue) -> None:
         """
         Initialize the SubscriptionHandler.
         
@@ -39,6 +39,7 @@ class SubscriptionHandler:
         """
 
         self.node_mapping = node_mapping
+        self.machine_id = machine_id
         self.queue = queue
 
 
@@ -92,9 +93,11 @@ class SubscriptionHandler:
 
         change_data = {
             'timestamp': timestamp,
+            'machine_id': self.machine_id,
             'variable': node_info["name"],
             'type': node_info["type"],
-            'value': int(val)
+            'value': int(val),
+            'event_type': 'R'  # Raw
         }
         
         try:
@@ -123,6 +126,7 @@ class AsyncOPCClient:
         self,
         host: str,
         port: int,
+        machine_id: int,
         username: Optional[str] = None,
         password: Optional[str] = None
     ) -> None:
@@ -141,6 +145,7 @@ class AsyncOPCClient:
 
         self.host = host
         self.port = port
+        self.machine_id = machine_id
         self.username = username
         self.password = password
 
@@ -268,7 +273,7 @@ class AsyncOPCClient:
                     "type" : node_type
                 }
 
-            handler = SubscriptionHandler(node_mapping, queue)
+            handler = SubscriptionHandler(node_mapping, self.machine_id, queue)
             subscription = await self.client.create_subscription(period, handler)
             await subscription.subscribe_data_change(variables)
             return subscription

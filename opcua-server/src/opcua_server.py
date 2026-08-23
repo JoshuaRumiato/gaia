@@ -83,14 +83,28 @@ class OPCServer:
             "Device1"
         )
         
-        for tag in ["InAlarm", "InBypass", "InCycle", "InWarning", "MachinePieceCounter", "LinePieceCounter"]:
+        boolean_tags = ["InAlarm", "InBypass", "InCycle", "InWarning"]
+        counter_tags = ["MachinePieceCounter", "LinePieceCounter"]
+        self.tag_types = {
+            **dict.fromkeys(boolean_tags, ua.VariantType.Boolean),
+            **dict.fromkeys(counter_tags, ua.VariantType.Int32),
+        }
+
+        for tag in boolean_tags:
             self.tags[tag] = await self.device.add_variable(
                 ua.NodeId(f"Channel1.Device1.{tag}", idx),
                 tag,
-                random.uniform(300, 500),
+                False,
+                ua.VariantType.Boolean
+            )
+
+        for tag in counter_tags:
+            self.tags[tag] = await self.device.add_variable(
+                ua.NodeId(f"Channel1.Device1.{tag}", idx),
+                tag,
+                random.randint(300, 500),
                 ua.VariantType.Int32
             )
-            await self.tags[tag].set_writable(True)
 
 
     async def start(self) -> None:
@@ -115,7 +129,7 @@ class OPCServer:
         """
         await self.server.stop()
 
-    async def set_tag_value(self, tag_name: str, value: bool) -> None:
+    async def set_tag_value(self, tag_name: str, value: bool | int) -> None:
         """
         Set the value of a tag.
 
@@ -127,7 +141,9 @@ class OPCServer:
             None
         """
         if tag_name in self.tags:
-            await self.tags[tag_name].write_value(value)
+            await self.tags[tag_name].write_value(
+                ua.Variant(value, self.tag_types[tag_name])
+            )
         else:
             logger.warning(f"Tag '{tag_name}' not found")
 

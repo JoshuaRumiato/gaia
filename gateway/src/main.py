@@ -201,6 +201,7 @@ async def main() -> None:
     opc_client = AsyncOPCClient(
         host = os.getenv("OPCUA_HOST"),
         port = int(os.getenv("OPCUA_PORT")),
+        machine_id = machine_id,
         username = os.getenv("OPCUA_USERNAME"),
         password = os.getenv("OPCUA_PASSWORD")
     )
