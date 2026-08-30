@@ -4,13 +4,13 @@ from typing import Any
 class CounterWatchdog:
     def __init__(
             self,
-            client_id: str,
+            machine_id: int,
             timeout_seconds: float,
             min_pieces: int,
             line_counter_name: str,
             machine_counter_name: str
     ):
-        self.client_id = client_id
+        self.machine_id = machine_id
         self.timeout_seconds = timeout_seconds
         self.min_pieces = min_pieces
         self.line_counter_name = line_counter_name
@@ -31,8 +31,8 @@ class CounterWatchdog:
                 self.anomaly = False
                 return {
                     "timestamp": time.time(),
-                    "client_id": self.client_id,
-                    "variable": "VisionAnomaly",
+                    "machine_id": self.machine_id,
+                    "variable": "MachineAnomaly",
                     "type": "Boolean",
                     "value": int(self.anomaly),
                     "event_type": "D"  # Derived
@@ -58,8 +58,8 @@ class CounterWatchdog:
                         self.anomaly = True
                         return {
                             "timestamp": time.time(),
-                            "client_id": self.client_id,
-                            "variable": "VisionAnomaly",
+                            "machine_id": self.machine_id,
+                            "variable": "MachineAnomaly",
                             "type": "Boolean",
                             "value": int(self.anomaly),
                             "event_type": "D"  # Derived

@@ -94,19 +94,20 @@ async def simulate_counters(server: OPCServer) -> None:
             current_line_counter = await server.get_tag_value("LinePieceCounter")
             line_random = random.random()
 
-            if line_random < 0.05:  # 5% chance to reset the line counter
+            if line_random < 0.02:  # 2% chance to reset the line counter
                 await server.set_tag_value("LinePieceCounter", 0)
                 line_stopped = False
-            elif line_random < 0.85:  # 80% chance to increment the line counter
-                await server.set_tag_value("LinePieceCounter", current_line_counter + 1)
+            elif line_random < 0.82:  # 80% chance to increment the line counter
+                await server.set_tag_value("LinePieceCounter", current_line_counter + 30)
                 line_stopped = False
-            else: # 15% chance to do nothing (line is stopped)
+            else: # 18% chance to do nothing (line is stopped)
                 line_stopped = True
 
-            await asyncio.sleep(random.uniform(0.5, 1.2)) # Random interval between increments
+            await asyncio.sleep(random.uniform(0.2, 1.2)) # Random interval between increments
 
             # Update machine counter
             current_machine_counter = await server.get_tag_value("MachinePieceCounter")
+            current_rejected_counter = await server.get_tag_value("MachineRejectedPieces")
 
             if machine_stop_cycles > 0:  # Machine is currently stopped
                 machine_stop_cycles -= 1
@@ -114,14 +115,17 @@ async def simulate_counters(server: OPCServer) -> None:
                 if not line_stopped:
                     machine_random = random.random()
 
-                    if machine_random < 0.20:  # 20% chance to stop the machine counter for a few cycles
-                        machine_stop_cycles = random.randint(2, 5)
-                    elif machine_random < 0.25:  # 5% chance to reset the machine counter
+                    if machine_random < 0.02:  # 2% chance to reset the machine counter
                         await server.set_tag_value("MachinePieceCounter", 0)
-                    else:  # 75% chance to increment the machine counter
-                        await server.set_tag_value("MachinePieceCounter", current_machine_counter + 1)
+                    elif machine_random < 0.62:  # 60% chance to increment the machine counter
+                        await server.set_tag_value("MachinePieceCounter", current_machine_counter + 30)
+                        reject_random = random.random()
+                        if reject_random < 0.05:  # 5% chance to increment the rejected pieces counter
+                            await server.set_tag_value("MachineRejectedPieces", current_rejected_counter + 5)
+                    else:  # 38% chance to do nothing (machine is stopped)
+                        machine_stop_cycles = random.randint(20, 30) 
 
-            await asyncio.sleep(random.uniform(3, 7))  # Random interval between increments
+            await asyncio.sleep(random.uniform(0.2, 1.2))  # Random interval between increments
     except asyncio.CancelledError:
         pass
     except Exception as e:

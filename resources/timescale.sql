@@ -17,7 +17,7 @@ SELECT * FROM pg_extension WHERE extname = 'timescaledb';
 -- created the timescaledb extension and want to configure the database table for
 -- storing and querying machine status changes
 
-CREATE TABLE IF NOT EXISTS machine_status_changes (
+CREATE TABLE IF NOT EXISTS machine_events (
     timestamp TIMESTAMPTZ NOT NULL,
     machine_id VARCHAR(40) NOT NULL,
     variable VARCHAR(20) NOT NULL,
@@ -27,26 +27,32 @@ CREATE TABLE IF NOT EXISTS machine_status_changes (
 );
 
 -- create the hypertable
-SELECT create_hypertable('machine_status_changes', 'timestamp');
+SELECT create_hypertable('machine_events', 'timestamp');
 
 -- check if the hypertable is created
 SELECT * FROM timescaledb_information.hypertables
-WHERE hypertable_name = 'machine_status_changes';
+WHERE hypertable_name = 'machine_events';
 
 -- other intresting queries
 SELECT * FROM timescaledb_information.dimensions
-WHERE hypertable_name = 'machine_status_changes';
+WHERE hypertable_name = 'machine_events';
 
 SELECT * FROM timescaledb_information.chunks
-WHERE hypertable_name = 'machine_status_changes';
+WHERE hypertable_name = 'machine_events';
 
-select hypertable_size('machine_status_changes');
+select hypertable_size('machine_events');
 
-SELECT * from hypertable_detailed_size('machine_status_changes');
+SELECT * from hypertable_detailed_size('machine_events');
 
 -- set retention policy
 SELECT set_retention_policy(INTERVAL '13 month')
 
+-- create user and grant permission for EMQX
+CREATE USER emqx_user WITH ENCRYPTED PASSWORD '[enter_password]';
+GRANT CONNECT ON DATABASE gaia_db TO emqx_user;
+GRANT USAGE ON SCHEMA public TO emqx_user;
+GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO emqx_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT ON TABLES TO emqx_user;
 
 -- create user and grant permissions for Grafana
 CREATE USER grafana_user WITH ENCRYPTED PASSWORD '[enter_password]';

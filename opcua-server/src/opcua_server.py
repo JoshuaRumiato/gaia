@@ -84,7 +84,7 @@ class OPCServer:
         )
         
         boolean_tags = ["InAlarm", "InBypass", "InCycle", "InWarning"]
-        counter_tags = ["MachinePieceCounter", "LinePieceCounter"]
+        counter_tags = ["MachinePieceCounter", "MachineRejectedPieces", "LinePieceCounter"]
         self.tag_types = {
             **dict.fromkeys(boolean_tags, ua.VariantType.Boolean),
             **dict.fromkeys(counter_tags, ua.VariantType.Int32),
@@ -102,7 +102,7 @@ class OPCServer:
             self.tags[tag] = await self.device.add_variable(
                 ua.NodeId(f"Channel1.Device1.{tag}", idx),
                 tag,
-                random.randint(300, 500),
+                0,
                 ua.VariantType.Int32
             )
 

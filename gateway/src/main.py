@@ -113,8 +113,8 @@ async def publisher_worker(
                 queue.task_done()
 
         except Exception as e:
-            mqtt_reconnection_attempt += 1
-            base_delay = min(BASE_TIME * 2**(mqtt_reconnection_attempt - 1), MAX_TIME)
+            mqtt_connection_attempt += 1
+            base_delay = min(BASE_TIME * 2**(mqtt_connection_attempt - 1), MAX_TIME)
             actual_delay = random.uniform(base_delay*0.8, base_delay*1.2)  # Add jitter with range [-20%, +20%]
 
             logger.error(f'MQTT | {e}. New connection attempt in {actual_delay:.2f}s...')
@@ -223,7 +223,7 @@ async def main() -> None:
     logger.info("MQTT | Client started.")
 
     counter_watchdog = CounterWatchdog(
-        client_id = client_id,
+        machine_id = machine_id,
         timeout_seconds = float(os.getenv("WATCHDOG_TIMEOUT_SECONDS")),
         min_pieces = int(os.getenv("WATCHDOG_MIN_PIECES")),
         line_counter_name = os.getenv("WATCHDOG_LINE_COUNTER_NAME"),
