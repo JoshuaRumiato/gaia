@@ -1,3 +1,21 @@
+-- Variables: variable, machine_id, order_id
+
+-- variable (multiple choice with 'All' option)
+SELECT DISTINCT me.variable
+FROM machine_status_changes me
+WHERE variable NOT IN ('DataValid')
+
+-- machine_id (single choice)
+SELECT DISTINCT machine_id FROM machine_status_changes
+
+-- order_id (single choice)
+SELECT DISTINCT order_id
+FROM machine_status_changes
+WHERE $__timeFilter(timestamp) 
+  AND machine_id = '${machine_id}'
+  AND order_id > 0;
+
+
 -- Tab 1: Stat
 
 -- Build validity periods for the DataValid signal

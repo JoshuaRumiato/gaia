@@ -26,12 +26,18 @@ CREATE TABLE IF NOT EXISTS machine_status_changes (
 	order_id INTEGER
 );
 
+
+
 -- create the hypertable
 SELECT create_hypertable('machine_status_changes', 'timestamp');
 
 -- check if the hypertable is created
 SELECT * FROM timescaledb_information.hypertables
 WHERE hypertable_name = 'machine_status_changes';
+
+-- set retention policy
+SELECT set_retention_policy(INTERVAL '13 month')
+
 
 -- other intresting queries
 SELECT * FROM timescaledb_information.dimensions
@@ -44,10 +50,15 @@ select hypertable_size('machine_status_changes');
 
 SELECT * from hypertable_detailed_size('machine_status_changes');
 
--- set retention policy
-SELECT set_retention_policy(INTERVAL '13 month')
 
+-- create user and grant permissions for EMQX
+CREATE USER emqx_user WITH ENCRYPTED PASSWORD '[enter_password]';
+GRANT CONNECT ON DATABASE gaia_db TO emqx_user;
+GRANT USAGE ON SCHEMA public TO emqx_user;
+GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public to emqx_user;
 
+-- (optional) automatically grant select permissions to the user for any new tables
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO emqx_user;
 
 
 -- create user and grant permissions for Grafana
