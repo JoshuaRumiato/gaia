@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS machine_events (
 -- create the hypertable
 SELECT create_hypertable('machine_events', 'timestamp');
 
+-- set retention policy
+SELECT set_retention_policy(INTERVAL '13 month')
+
+-- Other useful queries
 -- check if the hypertable is created
 SELECT * FROM timescaledb_information.hypertables
 WHERE hypertable_name = 'machine_events';
@@ -44,8 +48,6 @@ select hypertable_size('machine_events');
 
 SELECT * from hypertable_detailed_size('machine_events');
 
--- set retention policy
-SELECT set_retention_policy(INTERVAL '13 month')
 
 -- create user and grant permission for EMQX
 CREATE USER emqx_user WITH ENCRYPTED PASSWORD '[enter_password]';
@@ -53,6 +55,7 @@ GRANT CONNECT ON DATABASE gaia_db TO emqx_user;
 GRANT USAGE ON SCHEMA public TO emqx_user;
 GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO emqx_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT ON TABLES TO emqx_user;
+
 
 -- create user and grant permissions for Grafana
 CREATE USER grafana_user WITH ENCRYPTED PASSWORD '[enter_password]';
