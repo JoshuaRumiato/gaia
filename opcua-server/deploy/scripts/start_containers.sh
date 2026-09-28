@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configure paths
-IMAGE_NAME="ghcr.io/joshuarumiato/opcua-server:latest"
+IMAGE_NAME="ghcr.io/joshuarumiato/opcua-server:v1.0"
 ENV_DIR="../envs"
 LOG_FILE="../logs/report.log"
 LOG_DIR=$(dirname $LOG_FILE)
@@ -23,9 +23,9 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if ENV_DIR extists
+# Check if ENV_DIR exists
 if [ ! -d "$ENV_DIR" ]; then
-    log_message "ERROR: folder $ENV_DIR does not extist."
+    log_message "ERROR: folder $ENV_DIR does not exist."
     exit 1
 fi
 

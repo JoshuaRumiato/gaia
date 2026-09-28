@@ -105,9 +105,9 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
 
 ### First-time setup
 
-1. Clone the repositoty:
+1. Clone the repository and checkout version v1.0:
 ```bash
-  git clone https://github.com/JoshuaRumiato/gaia.git
+  git clone --branch v1.0 https://github.com/JoshuaRumiato/gaia.git
   cd gaia
 ```
 
@@ -116,7 +116,7 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
   docker network create gaia-global-network
 ```
 
-3. Start the SigNoz stack for observability (optional but reccomended)
+3. Start the SigNoz stack for observability (optional but recommended)
 ```bash
   docker compose -f signoz/docker/docker-compose.yaml up -d
 ```
@@ -141,7 +141,12 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
   docker compose --profile init up --build
 ```
 
-7. Configure environment variables for OPC UA servers and gateways:
+7. Configure the application services using the queries found in `resources/` (`timescale.sql`, `emqx.sql`, `grafana.sql`):
+    - create the hypertable and the users for EMQX and Grafana on TimescaleDB;
+    - configure the Grafana dashboard;
+    - set up the message forwarding rule to TimescaleDB in EMQX.
+
+8. Configure environment variables for OPC UA servers and gateways:
     - each `.env` file in the `opcua-server/deploy/envs/` folder will represent a single machine exposing an OPC UA server
     - each `.env` file in the `gateway/deploy/envs/` folder will represent a single gateway interfacing with a specific server
 
@@ -156,13 +161,13 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
   # Add as many .env files (with different names) as the machines you want to monitor
 ```
 
-8. Start the OPC UA server instances for configured machines:
+9. Start the OPC UA server instances for configured machines:
 ```bash
   cd ./opcua-server/deploy/scripts/
   ./start_containers.sh
 ```
 
-9. Start the gateway instances for configured machines:
+10. Start the gateway instances for configured machines:
 ```bash
   cd ../../../gateway/deploy/scripts/
   ./start_containers.sh
@@ -173,7 +178,7 @@ Ensure the following commands run correctly: `git`, `docker`, `docker compose`, 
 
 When the environment has already been initialized, use the following commands from the repository root:
 
-1. Start the SigNoz stack for observability (optional but reccomended)
+1. Start the SigNoz stack for observability (optional but recommended)
 ```bash
   docker compose -f signoz/docker/docker-compose.yaml up -d
 ```

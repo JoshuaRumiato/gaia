@@ -8,7 +8,7 @@ LOG_DIR=$(dirname $LOG_FILE)
 # Ensure the log folder exists
 mkdir -p "$LOG_DIR"
 
-# TODO: comment this function
+# Log a timestamped message to the terminal and report file.
 log_message() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
@@ -22,9 +22,9 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if ENV_DIR extists
+# Check if ENV_DIR exists
 if [ ! -d "$ENV_DIR" ]; then
-    log_message "ERROR: folder $ENV_DIR does not extist."
+    log_message "ERROR: folder $ENV_DIR does not exist."
     exit 1
 fi
 

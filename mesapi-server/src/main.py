@@ -76,7 +76,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db() -> Generator[Session, None, None]:
     """
-    Provide a transactional scope for database operations.
+    Provide a request-scoped database session.
 
     Create a new SQLAlchemy session for a single request and ensure
     the connection is closed after the request is processed.

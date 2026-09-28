@@ -2,11 +2,8 @@ name: Build and Push Microservices
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - 'gateway/**'
-      - 'opcua-server/**'
-      - '.github/workflows/docker-publish.yml'
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
@@ -30,6 +27,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify commit is on main branch
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor ${{ github.sha }} origin/main; then
+            echo "::error::Il tag '${{ github.ref_name }}' non appartiene al branch 'main'. Esecuzione annullata."
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -47,8 +54,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service_name }}
           tags: |
+            type=ref,event=tag
             type=raw,value=latest
-            type=sha,prefix=sha-
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

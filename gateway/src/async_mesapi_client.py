@@ -71,7 +71,7 @@ class AsyncMesAPIClient:
             await self.session.close()
 
 
-    async def get_current_order_id(self, machine: str) -> Optional[int]:
+    async def get_current_order_id(self, machine: str) -> int:
         """
         Fetch the active work order ID for a specific production machine.
 
@@ -82,12 +82,11 @@ class AsyncMesAPIClient:
             machine (str): The identifier of the production machine.
 
         Returns:
-            Optional[int]: The current work order ID if found. Returns None if
-            no active order exists for the machine, or if the API response
-            does not contain the 'active_order_id' field.
+            int: The current work order ID.
             
         Raises:
-            RuntimeError: If the session is not initialized or the HTTP request fails.
+            RuntimeError: If the session is not initialized, the request fails,
+                or the response does not contain a valid active order ID.
         """
 
         if not self.session:

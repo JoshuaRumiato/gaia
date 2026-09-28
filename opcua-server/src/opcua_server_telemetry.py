@@ -89,14 +89,12 @@ class OPCServerTelemetry:
 
         Initialize the OTLP log exporter, configure the logger provider with
         batch log record processing, and integrate with Python's standard logging
-        module. Skip if already initialized (idempotent).
+        module. Skip if already initialized (idempotent). Initialization errors
+        are caught and suppressed, leaving the instance uninitialized.
 
         Returns:
             None
 
-        Raises:
-            None: Errors during initialization are caught
-                and handled via shutdown to ensure correct resources cleanup.
         """
         
         if self.is_initialized:
@@ -130,16 +128,13 @@ class OPCServerTelemetry:
         """
         Safely shut down OpenTelemetry providers.
 
-        Ensure that all pending logs are flushed to the configured endpoint
-        before the application instance is destroyed. Reset the provider
-        attributes and the initialization flag.
+        When a provider exists, attempt to flush pending logs. Shut it down
+        if flushing completes without raising. Suppress errors, then reset
+        the provider reference and initialization flag in all cases.
 
         Returns:
             None
 
-        Raises:
-            Exception: Errors during flushing or shutdown are caught and
-                suppressed to prevent interruption of exit sequence.
         """
 
         try:

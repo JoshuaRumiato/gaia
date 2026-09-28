@@ -21,17 +21,18 @@ class SubscriptionHandler:
     network requests for BrowseName resolution.
 
     Attributes:
-        node_mapping (dict[str, str]): Dictionary mapping NodeId strings to node metadata
-            (name and type).
+        node_mapping (dict[str, dict[str, str]]): Mapping from NodeId strings
+            to metadata dictionaries containing the node name and type.
         queue (asyncio.Queue): Asynchronous queue used as communication buffer.
     """
 
-    def __init__(self, node_mapping: dict[str, str], queue: asyncio.Queue) -> None:
+    def __init__(self, node_mapping: dict[str, dict[str, str]], queue: asyncio.Queue) -> None:
         """
         Initialize the SubscriptionHandler.
         
         Args:
-            node_mapping (dict[str, str]): Map used for fast variable name resolution.
+            node_mapping (dict[str, dict[str, str]]): Map used for fast node
+                name and type resolution.
             queue (asyncio.Queue): Asynchronous queue used to store and share data.
         
         Returns:

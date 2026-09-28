@@ -152,9 +152,8 @@ class AsyncMQTTPublisher:
 
         Raises:
             RuntimeError: If called while the client is disconnected or
-                if the publish process fails.
-            TypeError: If the input message is not a dictionary or contains
-                non-serializable objects.
+                if serialization or publishing fails.
+            TypeError: If the input message is not a dictionary.
         """
 
         if not self.is_connected or self.client is None:

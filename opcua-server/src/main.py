@@ -31,6 +31,9 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
     - InWarning: 20% true, 80% false
     - InAlarm: 20% true, 80% false
 
+    The task stops when cancelled or when a tag update fails. Cancellation is
+    suppressed, while update failures are logged.
+
     Args:
         server (OPCServer): OPC UA server instance.
         interval (int): Time in seconds between state changes. Defaults to 3.
@@ -38,9 +41,6 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
     Returns:
         None
 
-    Raises:
-        asyncio.CancelledError: If the simulation task is cancelled.
-        Exception: If tag updates fail.
     """
     cycle_count = 0
     
@@ -87,7 +87,8 @@ async def main() -> None:
         None
 
     Raises:
-        Exception: Errors are caught and logged during shutdown.
+        Exception: If server initialization or lifecycle operations fail.
+            Unhandled exceptions are logged by the script entry point.
     """
 
     machine_id = int(os.getenv("MACHINE_ID"))
@@ -114,20 +115,23 @@ async def main() -> None:
     # Start server in background
     server_task = asyncio.create_task(opc_server.start())
     logger.info("OPC UA server started and awaiting client connections.")
+    interval_seconds = 3
+    simulation_task = asyncio.create_task(
+        simulate_tag_changes(opc_server, interval=interval_seconds)
+    )
 
     def handle_shutdown_signal() -> None:
         """
-        Cancel the OPC UA server task when a shutdown signal is received.
+        Cancel the simulation task when a shutdown signal is received.
         
-        This handler manages graceful shutdown of the OPC UA server in response
-        to system signals (SIGINT, SIGTERM), ensuring proper cleanup of the server
-        task and associated resources.
+        The simulation task handles cancellation, allowing main() to continue
+        to its cleanup block.
         
         Returns:
             None
         """
-        logger.info("OPC UA server stopped.")
-        server_task.cancel()
+        logger.info("Shutdown signal received.")
+        simulation_task.cancel()
 
     try:
         # Setup signal handlers for graceful shutdown
@@ -140,19 +144,21 @@ async def main() -> None:
             loop.add_signal_handler(signal.SIGTERM, handle_shutdown_signal)
         
         # Start tag simulation
-        interval_seconds = 3
-        simulation_task = asyncio.create_task(
-            simulate_tag_changes(opc_server, interval=interval_seconds)
-        )
         logger.info(f"Started tag simulation with {interval_seconds}-second intervals.")
         
-        # Wait for simulation to complete (runs until cancelled)
+        # The simulation runs until shutdown is requested or it fails.
         await simulation_task
     except KeyboardInterrupt:
-        logger.info("Simulation cancelled.")
+        logger.info("OPC UA server cancelled.")
     except asyncio.CancelledError:
         pass
     finally:
+        if simulation_task is not None:
+            simulation_task.cancel()
+            try:
+                await simulation_task
+            except asyncio.CancelledError:
+                pass
         server_task.cancel()
         try:
             await server_task

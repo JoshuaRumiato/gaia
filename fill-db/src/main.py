@@ -290,16 +290,16 @@ def main() -> None:
     """
     Execute the MES database population process.
     
-    Orchestrate the five phases of database population: schema creation,
-    article generation, order generation, progress statement generation
-    and insertion, and date calculation. Includes idempotency check to
-    skip if database is already populated.
+    Drop and recreate the articles, orders, and progress tables, then
+    populate them with generated data and calculate order dates. Existing
+    data in these tables is replaced on every run.
     
     Returns:
         None
     
     Raises:
-        Exception: If any phase fails, the transaction is rolled back.
+        Exception: If a phase fails. The current uncommitted transaction is
+            rolled back, but changes committed by earlier phases remain.
     """
     print("=" * 60)
     print("MES DATABASE POPULATION SCRIPT")

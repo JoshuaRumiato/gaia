@@ -12,7 +12,7 @@ SELECT DISTINCT machine_id FROM machine_status_changes
 SELECT DISTINCT order_id
 FROM machine_status_changes
 WHERE $__timeFilter(timestamp) 
-  AND machine_id = '${machine_id}'
+  AND machine_id = ${machine_id}
   AND order_id > 0;
 
 

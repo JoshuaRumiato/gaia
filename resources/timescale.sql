@@ -19,7 +19,7 @@ SELECT * FROM pg_extension WHERE extname = 'timescaledb';
 
 CREATE TABLE IF NOT EXISTS machine_status_changes (
     timestamp TIMESTAMPTZ NOT NULL,
-    machine_id VARCHAR(40) NOT NULL,
+    machine_id INTEGER NOT NULL,
     variable VARCHAR(20) NOT NULL,
     type VARCHAR(20) NOT NULL,
     value INTEGER NOT NULL,
@@ -36,10 +36,10 @@ SELECT * FROM timescaledb_information.hypertables
 WHERE hypertable_name = 'machine_status_changes';
 
 -- set retention policy
-SELECT set_retention_policy(INTERVAL '13 month')
+SELECT set_retention_policy('machine_status_changes', INTERVAL '13 month')
 
 
--- other intresting queries
+-- other interesting queries
 SELECT * FROM timescaledb_information.dimensions
 WHERE hypertable_name = 'machine_status_changes';
 
