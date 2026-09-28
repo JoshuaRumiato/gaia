@@ -31,6 +31,9 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
     - InWarning: 20% true, 80% false
     - InAlarm: 20% true, 80% false
 
+    The task stops when cancelled or when a tag update fails. Cancellation is
+    suppressed, while update failures are logged.
+
     Args:
         server (OPCServer): OPC UA server instance.
         interval (int): Time in seconds between state changes. Defaults to 3.
@@ -38,9 +41,6 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
     Returns:
         None
 
-    Raises:
-        asyncio.CancelledError: If the simulation task is cancelled.
-        Exception: If tag updates fail.
     """
 
     try:
@@ -75,13 +75,16 @@ async def simulate_tag_changes(server: OPCServer, interval: int = 3) -> None:
 
 async def simulate_counters(server: OPCServer) -> None:
     """
-    LOGICA PER I CONTATORI (questo commento va cancellato appena la funzione sarà implementata)
+    Simulate line and machine counters with resets, stoppages, and rejected pieces.
 
-    - Entrambi i contatori ragionano a singoli incrementi (+1, +1, +1...)
-    - La velocità di incremento dei due contatori è la medesima (può esssere inizializzata in modo casuale tra un incremento ogni 3 e 10 secondi)
-    - I due contatori non sono sincronizzati tra loro, non è detto che incrementino in modo simultaneo e non hanno gli stessi valori iniziali
-    - Ad intervalli irregolari entrambi i contatori possono essere azzerati (30% di probabilità per quello della linea, 10% per quello della linea)
-    - Ogni tanto deve capitare che il contatore del macchinario si fermi mentre quello della linea continua ad incrementare (il caso da rilevare attraverso il whatchdog)
+    The machine counter can stop while the line counter continues advancing,
+    allowing the gateway watchdog to detect production anomalies.
+
+    Args:
+        server: OPC UA server whose counter tags are updated.
+
+    Returns:
+        None
     """
 
     line_stopped = False
@@ -171,20 +174,21 @@ async def main() -> None:
     # Start server in background
     server_task = asyncio.create_task(opc_server.start())
     logger.info("OPC UA server started and awaiting client connections.")
+    simulation_task: asyncio.Task[None] | None = None
 
     def handle_shutdown_signal() -> None:
         """
-        Cancel the OPC UA server task when a shutdown signal is received.
+        Cancel the counter simulation when a shutdown signal is received.
         
-        This handler manages graceful shutdown of the OPC UA server in response
-        to system signals (SIGINT, SIGTERM), ensuring proper cleanup of the server
-        task and associated resources.
+        The simulation handles cancellation, allowing main() to reach its
+        cleanup block and stop the OPC UA server.
         
         Returns:
             None
         """
-        logger.info("OPC UA server stopped.")
-        server_task.cancel()
+        logger.info("Shutdown signal received.")
+        if simulation_task is not None:
+            simulation_task.cancel()
 
     try:
         # Setup signal handlers for graceful shutdown
@@ -210,6 +214,12 @@ async def main() -> None:
     except asyncio.CancelledError:
         pass
     finally:
+        if simulation_task is not None:
+            simulation_task.cancel()
+            try:
+                await simulation_task
+            except asyncio.CancelledError:
+                pass
         server_task.cancel()
         try:
             await server_task

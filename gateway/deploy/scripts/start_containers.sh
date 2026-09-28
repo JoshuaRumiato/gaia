@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configure paths
-IMAGE_NAME="ghcr.io/joshuarumiato/gateway:latest"
+IMAGE_NAME="ghcr.io/joshuarumiato/gateway:v2.0"
 ENV_DIR="../envs"
 LOG_FILE="../logs/report.log"
 LOG_DIR=$(dirname $LOG_FILE)

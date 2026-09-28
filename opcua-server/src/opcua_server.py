@@ -1,8 +1,8 @@
 """OPC UA server module for simulating industrial equipment.
 
-Provides a wrapper class that simulates an OPC UA server implementing a 
-KEPServerEX-like architecture with channels, devices, and boolean tags for
-machine state monitoring.
+Provides a wrapper class that simulates an OPC UA server implementing a
+KEPServerEX-like architecture with channels, devices, boolean machine-state
+tags, and integer production counters.
 """
 
 import asyncio
@@ -23,8 +23,8 @@ class OPCServer:
     """
     Simulates an OPC UA server with industrial device structure.
     
-    Implements a KEPServerEX-like architecture with a channel, device, and
-    boolean tags for machine state: InAlarm, InBypass, InCycle, InWarning.
+    Implements a KEPServerEX-like architecture with boolean machine-state tags
+    and integer counters for produced, rejected, and line pieces.
 
     Attributes:
         server: Internal OPC UA server instance.
@@ -32,6 +32,7 @@ class OPCServer:
         channel: Folder node representing the communication channel.
         device: Folder node representing the device.
         tags: Dictionary mapping tag names to node objects.
+        tag_types: Dictionary mapping tag names to OPC UA variant types.
     """
 
     def __init__(self, endpoint: str) -> None:
@@ -55,8 +56,8 @@ class OPCServer:
         """
         Configure the server and create the node structure.
         
-        Set up the server name, endpoint, and initialize the node hierarchy
-        (Channel -> Device -> Tags) with boolean state variables.
+        Set up the server name, endpoint, and node hierarchy (Channel -> Device
+        -> Tags) with boolean state variables and integer production counters.
 
         Returns:
             None
@@ -134,8 +135,8 @@ class OPCServer:
         Set the value of a tag.
 
         Args:
-            tag_name (str): Name of the tag (InAlarm, InBypass, InCycle, InWarning).
-            value (bool): Boolean value to set.
+            tag_name (str): Name of a machine-state or production-counter tag.
+            value (bool | int): Value matching the tag's OPC UA data type.
 
         Returns:
             None
@@ -147,15 +148,15 @@ class OPCServer:
         else:
             logger.warning(f"Tag '{tag_name}' not found")
 
-    async def get_tag_value(self, tag_name: str) -> Optional[bool]:
+    async def get_tag_value(self, tag_name: str) -> Optional[bool | int]:
         """
         Get the value of a tag.
 
         Args:
-            tag_name (str): Name of the tag (InAlarm, InBypass, InCycle, InWarning).
+            tag_name (str): Name of a machine-state or production-counter tag.
 
         Returns:
-            Optional[bool]: The boolean value of the tag, or None if tag not found.
+            Optional[bool | int]: The tag value, or None if the tag is not found.
         """
         if tag_name in self.tags:
             return await self.tags[tag_name].read_value()

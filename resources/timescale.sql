@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS machine_events (
 SELECT create_hypertable('machine_events', 'timestamp');
 
 -- set retention policy
-SELECT set_retention_policy(INTERVAL '13 month')
+SELECT set_retention_policy('machine_events', INTERVAL '13 month');
 
 -- Other useful queries
 -- check if the hypertable is created

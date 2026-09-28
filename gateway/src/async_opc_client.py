@@ -21,17 +21,20 @@ class SubscriptionHandler:
     network requests for BrowseName resolution.
 
     Attributes:
-        node_mapping (dict[str, str]): Dictionary mapping NodeId strings to node metadata
-            (name and type).
+        node_mapping (dict[str, dict[str, str]]): Mapping from NodeId strings
+            to metadata dictionaries containing the node name and type.
+        machine_id (int): Machine identifier included in emitted samples.
         queue (asyncio.Queue): Asynchronous queue used as communication buffer.
     """
 
-    def __init__(self, node_mapping: dict[str, str], machine_id: int, queue: asyncio.Queue) -> None:
+    def __init__(self, node_mapping: dict[str, dict[str, str]], machine_id: int, queue: asyncio.Queue) -> None:
         """
         Initialize the SubscriptionHandler.
         
         Args:
-            node_mapping (dict[str, str]): Map used for fast variable name resolution.
+            node_mapping (dict[str, dict[str, str]]): Map used for fast node
+                name and type resolution.
+            machine_id (int): Identifier added to each emitted sample.
             queue (asyncio.Queue): Asynchronous queue used to store and share data.
         
         Returns:
@@ -74,8 +77,8 @@ class SubscriptionHandler:
         """
         Callback executed when a subscribed node value changes.
 
-        Extract the NodeId, resolve its name through the mapping and
-        encapsulate the update in a dictionary, then put it in the queue.
+        Resolve node metadata, add the machine identifier and raw-event type,
+        then enqueue the sample without blocking.
 
         Args:
             node (asyncua.common.node.Node): Node that triggered the notification.
@@ -241,8 +244,8 @@ class AsyncOPCClient:
 
         Args:
             node_ids (list[str]): List of Node ID strings to subscribe to.
-            queue (asyncio.Queue): Asynchronous queue for storing data changes
-                enriched with metadata (timestamp, variable name, type, value).
+            queue (asyncio.Queue): Queue for data changes enriched with
+                timestamp, machine ID, variable name, type, value, and event type.
             period (int): Publishing interval in milliseconds. Defaults to 500.
 
         Returns:

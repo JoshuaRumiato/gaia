@@ -1,176 +1,230 @@
--- -- Tab 1: Stat
+-- Grafana panel query: total machine pieces produced while DataValid is true.
+WITH valid_intervals AS (
+    SELECT
+        "timestamp" AS interval_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_event,
+        value AS is_valid
+    FROM machine_events
+    WHERE variable = 'DataValid'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+overlapping_intervals AS (
+    SELECT
+        GREATEST(interval_start, $__timeFrom()::timestamptz) AS interval_start,
+        LEAST(COALESCE(next_event, $__timeTo()::timestamptz), $__timeTo()::timestamptz) AS interval_end
+    FROM valid_intervals
+    WHERE is_valid = 1
+      AND (interval_start, COALESCE(next_event, $__timeTo()::timestamptz))
+          OVERLAPS ($__timeFrom()::timestamptz, $__timeTo()::timestamptz)
+),
+counter_readings AS (
+    SELECT
+        intervals.interval_start,
+        events."timestamp",
+        events.value,
+        LAG(events.value) OVER (
+            PARTITION BY intervals.interval_start
+            ORDER BY events."timestamp"
+        ) AS previous_value
+    FROM overlapping_intervals AS intervals
+    JOIN machine_events AS events
+      ON events."timestamp" >= intervals.interval_start
+     AND events."timestamp" < intervals.interval_end
+     AND events.machine_id = '${machine_id}'
+     AND events.variable = 'MachinePieceCounter'
+)
+SELECT COALESCE(SUM(
+    CASE
+        WHEN previous_value IS NULL THEN 0
+        WHEN value >= previous_value THEN value - previous_value
+        ELSE value
+    END
+), 0) AS total_pieces_counted
+FROM counter_readings;
 
--- -- Build validity periods for the DataValid signal
--- WITH periods AS (
---     SELECT 
---         "timestamp" as validity_start,
---         COALESCE(LEAD("timestamp") OVER (ORDER BY "timestamp"), $__timeTo()::timestamp) as validity_end,
---         value as is_valid
---     FROM machine_status_changes
---     WHERE variable = 'DataValid'
---       AND machine_id = ${machine_id}
---       AND "timestamp" <= $__timeTo()::timestamp
--- ),
--- -- Keep only valid time windows overlapping the selected range
--- valid_windows AS (
---     SELECT validity_start, validity_end
---     FROM periods
---     WHERE is_valid = 1 
---       AND (validity_start, validity_end) OVERLAPS ($__timeFrom()::timestamp, $__timeTo()::timestamp)
--- ),
--- -- Build status intervals for the selected variables
--- state_intervals AS (
---     SELECT 
---         variable,
---         value,
---         "timestamp" as s_start,
---         COALESCE(LEAD("timestamp") OVER (PARTITION BY variable ORDER BY "timestamp"), $__timeTo()::timestamp) as s_next
---     FROM machine_status_changes
---     WHERE variable IN ('$status')
---       AND machine_id = ${machine_id}
--- ),
--- -- Intersect status intervals with valid data windows
--- valid_state_intervals AS (
---     SELECT 
---         s.variable,
---         s.value,
---         s.s_start,
---         s.s_next as s_next_clean,
---         GREATEST(s.s_start, v.validity_start, $__timeFrom()::timestamp) as i_start,
---         LEAST(s.s_next, v.validity_end) as i_end
---     FROM state_intervals s
---     JOIN valid_windows v ON (s.s_start, s.s_next) OVERLAPS (v.validity_start, v.validity_end)
--- ),
--- -- Calculate active time for each variable
--- calculations AS (
---     SELECT 
---         variable,
---         SUM(
---             CASE WHEN i_end > i_start 
---             THEN EXTRACT(EPOCH FROM (i_end - i_start)) 
---             ELSE 0 END
---         ) as active_seconds,
---         $__timeFrom()::timestamp as range_start,
---         $__timeTo()::timestamp as range_end
---     FROM valid_state_intervals
---     WHERE value = 1
---     GROUP BY variable
--- )
--- -- Convert active time into percentage over the selected range
--- SELECT
---     variable as metric,
---     (active_seconds / NULLIF(EXTRACT(EPOCH FROM (range_end - range_start)), 0)) * 100 as percentage
--- FROM calculations;
+-- Grafana panel query: total rejected pieces while DataValid is true.
+WITH valid_intervals AS (
+    SELECT
+        "timestamp" AS interval_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_event,
+        value AS is_valid
+    FROM machine_events
+    WHERE variable = 'DataValid'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+overlapping_intervals AS (
+    SELECT
+        GREATEST(interval_start, $__timeFrom()::timestamptz) AS interval_start,
+        LEAST(COALESCE(next_event, $__timeTo()::timestamptz), $__timeTo()::timestamptz) AS interval_end
+    FROM valid_intervals
+    WHERE is_valid = 1
+      AND (interval_start, COALESCE(next_event, $__timeTo()::timestamptz))
+          OVERLAPS ($__timeFrom()::timestamptz, $__timeTo()::timestamptz)
+),
+rejected_readings AS (
+    SELECT
+        intervals.interval_start,
+        events."timestamp",
+        events.value,
+        LAG(events.value) OVER (
+            PARTITION BY intervals.interval_start
+            ORDER BY events."timestamp"
+        ) AS previous_value
+    FROM overlapping_intervals AS intervals
+    JOIN machine_events AS events
+      ON events."timestamp" >= intervals.interval_start
+     AND events."timestamp" < intervals.interval_end
+     AND events.machine_id = '${machine_id}'
+     AND events.variable = 'MachineRejectedPieces'
+)
+SELECT COALESCE(SUM(
+    CASE
+        WHEN previous_value IS NULL THEN 0
+        WHEN value >= previous_value THEN value - previous_value
+        ELSE value
+    END
+), 0) AS total_rejected_pieces
+FROM rejected_readings;
 
+-- Grafana panel query: rejected-piece percentage while DataValid is true.
+WITH valid_intervals AS (
+    SELECT
+        "timestamp" AS interval_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_event,
+        value AS is_valid
+    FROM machine_events
+    WHERE variable = 'DataValid'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+overlapping_intervals AS (
+    SELECT
+        GREATEST(interval_start, $__timeFrom()::timestamptz) AS interval_start,
+        LEAST(COALESCE(next_event, $__timeTo()::timestamptz), $__timeTo()::timestamptz) AS interval_end
+    FROM valid_intervals
+    WHERE is_valid = 1
+      AND (interval_start, COALESCE(next_event, $__timeTo()::timestamptz))
+          OVERLAPS ($__timeFrom()::timestamptz, $__timeTo()::timestamptz)
+),
+counter_readings AS (
+    SELECT
+        intervals.interval_start,
+        events."timestamp",
+        events.value,
+        events.variable,
+        LAG(events.value) OVER (
+            PARTITION BY intervals.interval_start, events.variable
+            ORDER BY events."timestamp"
+        ) AS previous_value
+    FROM overlapping_intervals AS intervals
+    JOIN machine_events AS events
+      ON events."timestamp" >= intervals.interval_start
+     AND events."timestamp" < intervals.interval_end
+     AND events.machine_id = '${machine_id}'
+     AND events.variable IN ('MachinePieceCounter', 'MachineRejectedPieces')
+),
+deltas AS (
+    SELECT
+        variable,
+        CASE
+            WHEN previous_value IS NULL THEN 0
+            WHEN value >= previous_value THEN value - previous_value
+            ELSE value
+        END AS delta
+    FROM counter_readings
+),
+totals AS (
+    SELECT
+        COALESCE(SUM(delta) FILTER (WHERE variable = 'MachinePieceCounter'), 0) AS total_pieces,
+        COALESCE(SUM(delta) FILTER (WHERE variable = 'MachineRejectedPieces'), 0) AS total_rejected_pieces
+    FROM deltas
+)
+SELECT COALESCE(
+    total_rejected_pieces * 100.0 / NULLIF(total_pieces, 0),
+    0
+) AS rejected_percentage
+FROM totals;
 
--- -- Tab 1: State Timeline
+-- Grafana panel query: anomaly starts while DataValid is true.
+WITH valid_intervals AS (
+    SELECT
+        "timestamp" AS interval_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_event,
+        value AS is_valid
+    FROM machine_events
+    WHERE variable = 'DataValid'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+overlapping_intervals AS (
+    SELECT
+        GREATEST(interval_start, $__timeFrom()::timestamptz) AS interval_start,
+        LEAST(COALESCE(next_event, $__timeTo()::timestamptz), $__timeTo()::timestamptz) AS interval_end
+    FROM valid_intervals
+    WHERE is_valid = 1
+      AND (interval_start, COALESCE(next_event, $__timeTo()::timestamptz))
+          OVERLAPS ($__timeFrom()::timestamptz, $__timeTo()::timestamptz)
+)
+SELECT COUNT(*) AS total_anomalies
+FROM overlapping_intervals AS intervals
+JOIN machine_events AS events
+  ON events."timestamp" >= intervals.interval_start
+ AND events."timestamp" < intervals.interval_end
+ AND events.machine_id = '${machine_id}'
+ AND events.variable = 'MachineAnomaly'
+ AND events.value = 1;
 
--- WITH periods AS (
---     SELECT 
---         "timestamp" as v_start,
---         COALESCE(LEAD("timestamp") OVER (ORDER BY "timestamp"), $__timeTo()::timestamp) as v_end,
---         value as is_valid
---     FROM machine_status_changes
---     WHERE variable = 'DataValid'
---       AND machine_id = ${machine_id}
---       AND "timestamp" <= $__timeTo()::timestamp
--- ),
--- valid_windows AS (
---     SELECT v_start, v_end
---     FROM periods
---     WHERE is_valid = 1 
---       AND (v_start, v_end) OVERLAPS ($__timeFrom()::timestamp, $__timeTo()::timestamp)
--- ),
--- state_intervals AS (
---     SELECT 
---         variable,
---         value,
---         "timestamp" as s_start,
---         LEAD("timestamp") OVER (PARTITION BY variable ORDER BY "timestamp") as s_next
---     FROM machine_status_changes
---     WHERE variable IN ('$status')
---       AND machine_id = ${machine_id}
--- ),
--- intersected_states AS (
---     SELECT 
---         s.value::integer as val, 
---         GREATEST(s.s_start, v.v_start, $__timeFrom()::timestamp) as time_start,
---         LEAST(COALESCE(s.s_next, $__timeTo()::timestamp), v.v_end, $__timeTo()::timestamp) as time_end
---     FROM state_intervals s
---     JOIN valid_windows v ON (s.s_start, COALESCE(s.s_next, $__timeTo()::timestamp)) OVERLAPS (v.v_start, v.v_end)
--- ),
--- invalid_breaks AS (
---     SELECT 
---         v_end as time_start,
---         NULL::integer as val
---     FROM valid_windows
---     WHERE v_end < $__timeTo()::timestamp
--- )
--- SELECT time_start as "time", val as value 
--- FROM (
---     SELECT time_start, val FROM intersected_states
---     UNION ALL
---     SELECT time_start, val FROM invalid_breaks
--- ) final_data
--- WHERE time_start BETWEEN $__timeFrom()::timestamp AND $__timeTo()::timestamp
--- ORDER BY 1;
-
-
-
--- -- Tab 2: Table
-
--- WITH filtered_orders AS (
---   -- Select orders with activity inside the selected Grafana time range
---   SELECT DISTINCT order_id
---   FROM order_progress_statements
---   WHERE $__timeFilter("timestamp")
---     AND order_id IN ($order_id)
--- ),
--- base_table AS (
---   SELECT
---     MAX(ops."timestamp") AS "Last update",
---     ops.order_id AS "Order ID",
---     CASE
---       WHEN NOW()::timestamp < o.END_DATE THEN 'ACTIVE'
---       ELSE 'CLOSED'
---     END AS "Status",
-
---     a.id AS "Article ID",
---     a.description AS "Article description",
---     o.target_qty as "Target qty.",
---     SUM(ops.produced_qty) AS "Produced qty.",
---     SUM(ops.discarded_qty) AS "Discarded qty."
---   FROM order_progress_statements ops
---     JOIN filtered_orders fo ON ops.order_id = fo.order_id
---     JOIN orders o ON ops.order_id = o.id
---     JOIN articles a ON o.article_id = a.id
---   WHERE
---     ops."timestamp" <= $__timeTo()::timestamp
---   GROUP BY
---     ops.order_id,
---     o.end_date,
---     a.id,
---     a.description,
---     o.target_qty
--- )
--- -- Return aggregated order overview
--- SELECT * 
--- FROM base_table 
--- ORDER BY "Last update" ASC
-
-
--- -- Tab 2: Time Series
-
--- -- Compute cumulative net produced quantity over time
--- WITH base_table AS ( 
---   SELECT
---     "timestamp" as "time",
---     SUM(produced_qty - discarded_qty) 
---       OVER (PARTITION BY order_id ORDER BY "timestamp") as "net produced quantity"
---   FROM order_progress_statements
---   WHERE order_id IN ($order_id)
--- )
--- -- Return time series data
--- SELECT * 
--- FROM base_table
-
+-- Grafana panel query: duration of anomaly intervals while DataValid is true.
+WITH valid_intervals AS (
+    SELECT
+        "timestamp" AS interval_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_event,
+        value AS is_valid
+    FROM machine_events
+    WHERE variable = 'DataValid'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+overlapping_valid_intervals AS (
+    SELECT
+        GREATEST(interval_start, $__timeFrom()::timestamptz) AS interval_start,
+        LEAST(COALESCE(next_event, $__timeTo()::timestamptz), $__timeTo()::timestamptz) AS interval_end
+    FROM valid_intervals
+    WHERE is_valid = 1
+      AND (interval_start, COALESCE(next_event, $__timeTo()::timestamptz))
+          OVERLAPS ($__timeFrom()::timestamptz, $__timeTo()::timestamptz)
+),
+anomaly_events AS (
+    SELECT
+        "timestamp" AS anomaly_start,
+        LEAD("timestamp") OVER (ORDER BY "timestamp") AS next_anomaly_event,
+        value AS is_anomaly
+    FROM machine_events
+    WHERE variable = 'MachineAnomaly'
+      AND machine_id = '${machine_id}'
+      AND "timestamp" <= $__timeTo()::timestamptz
+),
+anomaly_intervals AS (
+    SELECT
+        anomaly_start,
+        COALESCE(next_anomaly_event, $__timeTo()::timestamptz) AS anomaly_end
+    FROM anomaly_events
+    WHERE is_anomaly = 1
+),
+overlapping_anomalies AS (
+    SELECT
+        GREATEST(validity.interval_start, anomaly.anomaly_start) AS anomaly_start,
+        LEAST(validity.interval_end, anomaly.anomaly_end) AS anomaly_end
+    FROM overlapping_valid_intervals AS validity
+    JOIN anomaly_intervals AS anomaly
+      ON (validity.interval_start, validity.interval_end)
+         OVERLAPS (anomaly.anomaly_start, anomaly.anomaly_end)
+)
+SELECT COALESCE(
+    SUM(EXTRACT(EPOCH FROM (anomaly_end - anomaly_start))),
+    0
+) AS total_anomaly_seconds
+FROM overlapping_anomalies
+WHERE anomaly_end > anomaly_start;

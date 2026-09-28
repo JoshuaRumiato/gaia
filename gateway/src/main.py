@@ -3,8 +3,8 @@ IoT Bridge for OPC UA to MQTT data ingestion.
 
 This module acts as the entry point for the application. It orchestrates 
 the connection to an OPC UA server, monitors specific variables, and 
-publishes the gathered data to an MQTT broker. It also handles system 
-signals for a graceful shutdown and manages telemetry and MES API integration.
+publishes the gathered data to an MQTT broker. It also handles system
+signals for a graceful shutdown, telemetry, and counter-watchdog events.
 """
 
 import os
@@ -40,20 +40,17 @@ async def publisher_worker(
         max_concurrent: int = 50
 ) -> None:
     """
-    Consume and process messages from a queue, then publish them via MQTT.
+    Process queued OPC UA samples and publish them via MQTT.
 
-    Maintain an active connection to the MQTT broker, handle automatic 
-    retries on connection failure, and process messages asynchronously 
-    from the provided queue. Each message is enriched with extra data and
-    production order information before publishing. The worker continuously
-    attempts to reconnect to the broker in case of disconnection with a 3
-    second retry delay.
+    Maintain an MQTT connection, pass each sample through the counter watchdog,
+    and publish raw samples plus any derived anomaly events. On connection
+    failure, retry with exponential backoff and jitter.
 
     Args:
         mqtt_publisher: Client used to publish messages.
         mqtt_birth_message: Message to publish upon successful connection.
         queue: Asynchronous queue containing messages to process.
-        extra_data: Data to merge into every outgoing message. Defaults to None.
+        watchdog: Detector for anomalies between line and machine counters.
         max_concurrent: Maximum number of concurrent publishing tasks. 
             Defaults to 50.
 
@@ -93,7 +90,7 @@ async def publisher_worker(
         try:
             await mqtt_publisher.connect()
             logger.info(f"MQTT | Client connected to {mqtt_publisher.broker}.")
-            mqtt_connection_attempt = 0  # Connection successful, reset the numeber of attempts
+            mqtt_connection_attempt = 0  # Reset the attempt count after connecting
 
             try:
                 await mqtt_publisher.publish(mqtt_birth_message, qos=2)
