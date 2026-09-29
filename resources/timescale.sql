@@ -17,48 +17,45 @@ SELECT * FROM pg_extension WHERE extname = 'timescaledb';
 -- created the timescaledb extension and want to configure the database table for
 -- storing and querying machine status changes
 
-CREATE TABLE IF NOT EXISTS machine_status_changes (
+CREATE TABLE IF NOT EXISTS machine_events (
     timestamp TIMESTAMPTZ NOT NULL,
     machine_id INTEGER NOT NULL,
     variable VARCHAR(20) NOT NULL,
     type VARCHAR(20) NOT NULL,
     value INTEGER NOT NULL,
-	order_id INTEGER
+	event_type CHAR(1) NOT NULL
 );
 
-
-
 -- create the hypertable
-SELECT create_hypertable('machine_status_changes', 'timestamp');
-
--- check if the hypertable is created
-SELECT * FROM timescaledb_information.hypertables
-WHERE hypertable_name = 'machine_status_changes';
+SELECT create_hypertable('machine_events', 'timestamp');
 
 -- set retention policy
-SELECT set_retention_policy('machine_status_changes', INTERVAL '13 month')
+SELECT add_retention_policy('machine_events', INTERVAL '13 month');
 
+-- Other useful queries
+-- check if the hypertable is created
+SELECT * FROM timescaledb_information.hypertables
+WHERE hypertable_name = 'machine_events';
 
--- other interesting queries
+-- other intresting queries
 SELECT * FROM timescaledb_information.dimensions
-WHERE hypertable_name = 'machine_status_changes';
+WHERE hypertable_name = 'machine_events';
 
 SELECT * FROM timescaledb_information.chunks
-WHERE hypertable_name = 'machine_status_changes';
+WHERE hypertable_name = 'machine_events';
 
-select hypertable_size('machine_status_changes');
+select hypertable_size('machine_events');
 
-SELECT * from hypertable_detailed_size('machine_status_changes');
+SELECT * from hypertable_detailed_size('machine_events');
 
 
--- create user and grant permissions for EMQX
+-- create user and grant permission for EMQX
 CREATE USER emqx_user WITH ENCRYPTED PASSWORD '[enter_password]';
 GRANT CONNECT ON DATABASE gaia_db TO emqx_user;
 GRANT USAGE ON SCHEMA public TO emqx_user;
-GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public to emqx_user;
-
+GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO emqx_user;
 -- (optional) automatically grant select permissions to the user for any new tables
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO emqx_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT ON TABLES TO emqx_user;
 
 
 -- create user and grant permissions for Grafana

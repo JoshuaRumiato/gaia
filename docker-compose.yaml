@@ -36,25 +36,7 @@ services:
       - gaia-infra-network
 
   # =========================================
-  # 2. Fill-DB - Data population script
-  # =========================================
-  fill-db-service:
-    profiles:
-      - init
-    build:
-      context: ./fill-db
-    container_name: gaia-fill-db
-    restart: "no"
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-    env_file:
-      - ./fill-db/.env
-    networks:
-      - gaia-infra-network
-
-  # =========================================
-  # 3. EMQX - MQTT Broker
+  # 2. EMQX - MQTT Broker
   # =========================================
   emqx:
     image: emqx/emqx:latest
@@ -76,7 +58,7 @@ services:
       - gaia-global-network
 
   # =========================================
-  # 4. Grafana - Visualization tool
+  # 3. Grafana - Visualization tool
   # =========================================
   grafana:
     image: grafana/grafana:latest
@@ -100,32 +82,3 @@ services:
       start_period: 30s
     networks:
       - gaia-infra-network
-
-  # =========================================
-  # 5. Server HTTP (Endpoint REST API)
-  # =========================================
-  mesapi-http-server:
-    build:
-      context: ./mesapi-server
-    container_name: gaia-mesapi-http-server
-    restart: unless-stopped
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    env_file:
-      - mesapi-server/.env
-    networks:
-      - gaia-infra-network
-      - gaia-global-network

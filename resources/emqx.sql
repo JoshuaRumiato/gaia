@@ -5,17 +5,17 @@ SELECT
   payload.variable as variable, 
   payload.type as type,
   payload.value as value, 
-  payload.order_id as order_id
+  payload.event_type as event_type
 FROM "prod/gaia/#"
 
 -- EMQX sink
-INSERT INTO machine_status_changes (
+INSERT INTO machine_events (
   timestamp, 
   machine_id, 
   variable, 
   type, 
   value, 
-  order_id
+  event_type
 ) 
 VALUES (
   (CASE 
@@ -26,5 +26,5 @@ VALUES (
   ${variable},
   ${type},
   ${value},
-  ${order_id}
+  ${event_type}
 )

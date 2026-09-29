@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configure paths
-IMAGE_NAME="ghcr.io/joshuarumiato/opcua-server:v1.0"
+IMAGE_NAME="ghcr.io/joshuarumiato/opcua-server:v2.0"
 ENV_DIR="../envs"
 LOG_FILE="../logs/report.log"
 LOG_DIR=$(dirname $LOG_FILE)
